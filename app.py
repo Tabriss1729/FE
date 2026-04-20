@@ -58,7 +58,6 @@ with st.sidebar:
         if uploaded_json is not None:
             if st.session_state.loaded_file_id != uploaded_json.file_id:
                 try:
-                    # 💡 核心修復：使用更安全的字串讀取方式，避免檔案指標遺失
                     file_content = uploaded_json.getvalue().decode("utf-8")
                     data = json.loads(file_content)
                     
@@ -82,9 +81,11 @@ with st.sidebar:
                     
                     st.session_state.loaded_file_id = uploaded_json.file_id
                     st.session_state.editor_key += 1
+                    
+                    # 💡 讀取新檔案時，清除舊的計算結果
+                    if 'res_df' in st.session_state: del st.session_state.res_df 
                     st.rerun()
                 except Exception as e:
-                    # 💡 核心修復：如果失敗，印出真正的紅色錯誤代碼
                     st.error(f"讀取失敗！詳細原因: {e}")
 
         st.divider()
@@ -239,17 +240,7 @@ edited_df = st.data_editor(
 st.divider()
 st.subheader("📥 計算與匯出")
 
-col_name1, _ = st.columns([1, 2])
-with col_name1:
-    if "H-cell" in mode:
-        default_excel_name = "FE_Result_H-cell"
-    else:
-        gas_str = "N2_Gas" if is_n2_mode else "Ar_Gas"
-        default_excel_name = f"FE_Result_GDE_{gas_str}"
-        
-    custom_excel_name = st.text_input("自訂 Excel 檔名", value=default_excel_name)
-    excel_filename_final = f"{today_str}_{custom_excel_name}.xlsx"
-
+# 💡 點擊計算時，把結果存入 session_state
 if st.button("🔄 開始計算 FE", type="primary"):
     res_df = edited_df.copy()
     fe_res, tn_res = [], []
@@ -274,7 +265,13 @@ if st.button("🔄 開始計算 FE", type="primary"):
     if "GDE" in mode: res_df["Total n (μmol)"] = tn_res
     res_df["FE (%)"] = fe_res
     
-    st.dataframe(res_df.drop(columns=["選取"], errors='ignore'), use_container_width=True)
+    # 存入記憶體
+    st.session_state.res_df = res_df
+
+# 💡 如果記憶體裡有計算結果，就顯示出來，並把輸入框與按鈕並排！
+if 'res_df' in st.session_state:
+    st.success("✅ 計算完成！")
+    st.dataframe(st.session_state.res_df.drop(columns=["選取"], errors='ignore'), use_container_width=True)
 
     def to_pro_excel(df, curr_mode, curr_electrolyte, curr_Q, is_n2):
         def apply_subscript(text):
@@ -363,4 +360,19 @@ if st.button("🔄 開始計算 FE", type="primary"):
         wb.save(out)
         return out.getvalue()
 
-    st.download_button("📥 下載 Excel", data=to_pro_excel(res_df, mode, electrolyte, total_q, is_n2_mode), file_name=excel_filename_final)
+    if "H-cell" in mode:
+        default_excel_name = "FE_Result_H-cell"
+    else:
+        gas_str = "N2_Gas" if is_n2_mode else "Ar_Gas"
+        default_excel_name = f"FE_Result_GDE_{gas_str}"
+
+    st.markdown("##### 📁 匯出報表 (可自訂檔名)")
+    
+    # 💡 核心排版：將輸入框與下載按鈕排在同一行
+    col_input, col_dl, _ = st.columns([2, 2, 4])
+    with col_input:
+        # 隱藏 Label 讓它能跟右邊的按鈕完美對齊
+        custom_excel_name = st.text_input("自訂 Excel 檔名", value=default_excel_name, label_visibility="collapsed")
+        excel_filename_final = f"{today_str}_{custom_excel_name}.xlsx"
+    with col_dl:
+        st.download_button("📥 下載 Excel", data=to_pro_excel(st.session_state.res_df, mode, electrolyte, total_q, is_n2_mode), file_name=excel_filename_final, use_container_width=True)
