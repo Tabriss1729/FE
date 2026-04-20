@@ -9,19 +9,10 @@ from openpyxl.styles import Alignment, Border, Side, Font
 
 # --- 1. 頁面與常數設定 ---
 st.set_page_config(page_title="Faradaic Efficiency 計算機", layout="wide")
-
-# 強制縮小 Streamlit 全站的上下間距
-st.markdown("""
-    <style>
-        div[data-testid="stVerticalBlock"] { gap: 0.3rem !important; }
-        div[data-testid="stExpanderDetails"] { gap: 0.2rem !important; }
-        .compact-hr { margin-top: 5px !important; margin-bottom: 5px !important; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.2); }
-    </style>
-""", unsafe_allow_html=True)
-
 st.title("⚡ Faradaic Efficiency 數據計算機")
 
 F_const = 96485
+# 固定計算公式
 HCELL_FORMULA = "(Conc * 50 * Dilution * 1e-6 * n_e * F) / Q * 100"
 GDE_N_FORMULA = "(C1 * V_acid + C2 * V_re) * Dilution"
 GDE_FE_FORMULA = "(Total_n * 1e-6 * n_e * F) / Q * 100"
@@ -71,9 +62,9 @@ with st.sidebar:
                 st.success("✅ 已載入設定")
             except: st.error("讀取失敗")
 
-        st.markdown("<hr class='compact-hr'>", unsafe_allow_html=True)
-        st.markdown("<p style='font-weight: 600; font-size: 15px; margin-bottom: 0px;'>💾 儲存設定</p>", unsafe_allow_html=True)
-        custom_json_name = st.text_input("自訂 JSON 檔名", value="FE_Config", label_visibility="collapsed")
+        st.divider()
+        st.markdown("##### 💾 儲存設定")
+        custom_json_name = st.text_input("自訂 JSON 檔名", value="FE_Config")
         json_filename_final = f"{custom_json_name}.json" if not custom_json_name.endswith(".json") else custom_json_name
 
         save_data = {
@@ -104,7 +95,7 @@ with st.sidebar:
 
 # --- 3. 表格操作 ---
 with st.expander("🛠️ 表格操作 (新增行數 / 批量編輯)", expanded=False):
-    st.markdown("<p style='font-weight: 600; font-size: 16px; margin-bottom: 5px;'>➕ 批量新增空行</p>", unsafe_allow_html=True)
+    st.markdown("##### ➕ 批量新增空行")
     col_add1, col_add2, _ = st.columns([1, 1, 3])
     with col_add1:
         add_count = st.number_input("輸入要新增的行數", min_value=1, max_value=50, value=1, step=1, label_visibility="collapsed")
@@ -122,9 +113,9 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量編輯)", expanded=
             else: st.session_state.gde_data = pd.concat([st.session_state.gde_data, new_df], ignore_index=True)
             st.rerun()
 
-    st.markdown("<hr class='compact-hr'>", unsafe_allow_html=True)
+    st.divider()
 
-    st.markdown("<p style='font-weight: 600; font-size: 16px; margin-bottom: 0px;'>🪄 批量修改 (留空則不修改)</p>", unsafe_allow_html=True)
+    st.markdown("##### 🪄 批量修改 (留空則不修改)")
     col1, col2, col3, col4 = st.columns(4)
     with col1: b_cat = st.text_input("批量更新催化劑")
     with col2: b_load = st.text_input("批量更新 Loading (μl)")
@@ -155,7 +146,7 @@ if "H-cell" in mode: st.session_state.hcell_data = edited_df
 else: st.session_state.gde_data = edited_df
 
 # --- 5. 計算與匯出設定 ---
-st.markdown("<hr class='compact-hr'>", unsafe_allow_html=True)
+st.divider()
 st.subheader("📥 計算與匯出")
 
 col_name1, _ = st.columns([1, 2])
@@ -194,7 +185,6 @@ if st.button("🔄 開始計算 FE", type="primary"):
     res_df["FE (%)"] = fe_res
     st.dataframe(res_df, use_container_width=True)
 
-    # 🌟 完美復刻：專業級 Excel 合併排版邏輯
     def to_pro_excel(df, curr_mode, curr_electrolyte, curr_Q, is_n2):
         def apply_subscript(text):
             if pd.isna(text): return ""
@@ -212,7 +202,6 @@ if st.button("🔄 開始計算 FE", type="primary"):
         ws.title = "FE_Results"
         thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
-        # 將數據轉換為目標欄位格式
         export_data = []
         gas_mode_str = "N2_Gas" if is_n2 else "Ar_Gas"
 
@@ -237,8 +226,6 @@ if st.button("🔄 開始計算 FE", type="primary"):
         cur_row = 1
         for prod, group in df_export.groupby("Product Type"):
             cols = list(group.columns)
-            
-            # 寫入標題
             for c_idx, c_name in enumerate(cols):
                 cell = ws.cell(row=cur_row, column=c_idx+1, value=apply_subscript(c_name))
                 cell.font = Font(bold=True)
@@ -246,7 +233,6 @@ if st.button("🔄 開始計算 FE", type="primary"):
                 cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             
             start_r = cur_row + 1
-            # 寫入數據
             for r_idx, r_data in enumerate(group.values.tolist()):
                 for c_idx, val in enumerate(r_data):
                     cell = ws.cell(row=start_r+r_idx, column=c_idx+1, value=apply_subscript(val))
@@ -255,13 +241,10 @@ if st.button("🔄 開始計算 FE", type="primary"):
             
             end_r = start_r + len(group) - 1
 
-            # 🪄 核心合併邏輯
             if end_r > start_r:
-                # Level 1: 全局合併 (Cell, Electrolyte, Q, Product, 稀釋倍率) -> 對應第 1, 2, 3, 4, 7 欄
                 for col_idx in [1, 2, 3, 4, 7]:
                     ws.merge_cells(start_row=start_r, end_row=end_r, start_column=col_idx, end_column=col_idx)
 
-                # Level 2: 根據催化劑區塊合併 (Catalyst, Loading) -> 對應第 5, 6 欄
                 catalyst_starts = start_r
                 current_cat = ws.cell(row=start_r, column=5).value
                 for r in range(start_r + 1, end_r + 2):
@@ -273,9 +256,8 @@ if st.button("🔄 開始計算 FE", type="primary"):
                         catalyst_starts = r
                         current_cat = cell_val
 
-            cur_row = end_r + 2 # 表格之間留一行空白
+            cur_row = end_r + 2
 
-        # 自動調整欄寬
         for col in ws.columns:
             max_length = 0
             column_letter = col[0].column_letter
