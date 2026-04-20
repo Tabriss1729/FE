@@ -13,12 +13,10 @@ st.set_page_config(page_title="Faradaic Efficiency 計算機", layout="wide")
 st.title("⚡ Faradaic Efficiency 數據計算機")
 
 F_const = 96485
-# 固定計算公式
 HCELL_FORMULA = "(Conc * 50 * Dilution * 1e-6 * n_e * F) / Q * 100"
 GDE_N_FORMULA = "(C1 * V_acid + C2 * V_re) * Dilution"
 GDE_FE_FORMULA = "(Total_n * 1e-6 * n_e * F) / Q * 100"
 
-# 獲取當天日期 (格式如: 20240520)
 today_str = datetime.date.today().strftime("%Y%m%d")
 
 # --- 初始化 Session State ---
@@ -45,7 +43,6 @@ if 'gde_data' not in st.session_state:
         "V vs RHE": pd.Series(dtype='float'), "稀釋倍率": pd.Series(dtype='float'), "Acid C1 (mM)": pd.Series(dtype='float'), "RE C2 (mM)": pd.Series(dtype='float')
     })
 
-# 強制修復舊版 Cache 遺失「選取」欄位的問題
 if '選取' not in st.session_state.hcell_data.columns:
     st.session_state.hcell_data.insert(0, '選取', False)
 if '選取' not in st.session_state.gde_data.columns:
@@ -165,7 +162,7 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
                     if b_vrhe: target_df.loc[mask, "V vs RHE"] = float(b_vrhe)
                     if b_dil: target_df.loc[mask, "稀釋倍率"] = float(b_dil)
                     
-                    target_df["選取"] = False  # 修改完自動取消勾選
+                    target_df["選取"] = False
                     if "H-cell" in mode: st.session_state.hcell_data = target_df
                     else: st.session_state.gde_data = target_df
                     
@@ -185,7 +182,6 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
                     st.warning("⚠️ 請先在下方表格左側勾選 (☑) 您要刪除的行！")
                 else:
                     target_df = target_df[~mask].reset_index(drop=True)
-                    
                     if "H-cell" in mode: st.session_state.hcell_data = target_df
                     else: st.session_state.gde_data = target_df
                     
@@ -196,12 +192,28 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
 
 # --- 4. 數據表格 ---
 st.subheader(f"📊 數據輸入 - {mode}")
+
+# 💡 新增：全選 / 全不選 按鈕
+col_sel1, col_sel2, _ = st.columns([1, 1, 8])
+with col_sel1:
+    if st.button("☑ 全選", use_container_width=True):
+        if "H-cell" in mode: st.session_state.hcell_data["選取"] = True
+        else: st.session_state.gde_data["選取"] = True
+        st.session_state.editor_key += 1
+        st.rerun()
+with col_sel2:
+    if st.button("☐ 全取消", use_container_width=True):
+        if "H-cell" in mode: st.session_state.hcell_data["選取"] = False
+        else: st.session_state.gde_data["選取"] = False
+        st.session_state.editor_key += 1
+        st.rerun()
+
 current_df = st.session_state.hcell_data if "H-cell" in mode else st.session_state.gde_data
 
 edited_df = st.data_editor(
     current_df,
     key=f"data_editor_{mode}_{st.session_state.editor_key}",
-    num_rows="fixed", # 💡 終極解法：設為 fixed 徹底禁用原生增減功能與原生打勾框
+    num_rows="fixed",
     use_container_width=True,
     hide_index=True,
     column_config={
@@ -341,4 +353,4 @@ if st.button("🔄 開始計算 FE", type="primary"):
         wb.save(out)
         return out.getvalue()
 
-    st.download_button("📥 下載專業排版 Excel", data=to_pro_excel(res_df, mode, electrolyte, total_q, is_n2_mode), file_name=excel_filename_final)
+    st.download_button("📥 下 Excel", data=to_pro_excel(res_df, mode, electrolyte, total_q, is_n2_mode), file_name=excel_filename_final)
