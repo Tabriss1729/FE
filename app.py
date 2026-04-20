@@ -160,11 +160,11 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1: 
         prod_options = ["(不修改)", "NH3"] if is_n2_mode else ["(不修改)", "NH3", "NO2"]
-        b_prod = st.selectbox("更新 Product", options=prod_options)
-    with col2: b_cat = st.text_input("更新 Catalyst")
-    with col3: b_load = st.text_input("更新 Loading (μl)")
-    with col4: b_vrhe = st.text_input("更新 V vs RHE")
-    with col5: b_dil = st.text_input("更新 Dilution Factor")
+        b_prod = st.selectbox("Product", options=prod_options)
+    with col2: b_cat = st.text_input("Catalyst")
+    with col3: b_load = st.text_input("Loading (μl)")
+    with col4: b_vrhe = st.text_input("V vs RHE")
+    with col5: b_dil = st.text_input("Dilution Factor")
     
     col_btn1, col_btn2, _ = st.columns([2, 2, 4])
     with col_btn1:
