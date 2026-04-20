@@ -22,7 +22,6 @@ GDE_FE_FORMULA = "(Total_n * 1e-6 * n_e * F) / Q * 100"
 today_str = datetime.date.today().strftime("%Y%m%d")
 
 # --- 初始化 Session State ---
-# 💡 核心修復 1：用來強制刷新表格的身份證 (Key)，以及防止 JSON 無限重複讀取的記錄
 if 'editor_key' not in st.session_state: st.session_state.editor_key = 0
 if 'loaded_file_id' not in st.session_state: st.session_state.loaded_file_id = ""
 
@@ -33,13 +32,16 @@ if 'electrolyte' not in st.session_state: st.session_state.electrolyte = "0.5 M 
 if 'acid_vol' not in st.session_state: st.session_state.acid_vol = 10.0
 if 're_vol' not in st.session_state: st.session_state.re_vol = 50.0
 
+# 💡 修改點：在 DataFrame 初始化時，加入「選取」欄位
 if 'hcell_data' not in st.session_state:
     st.session_state.hcell_data = pd.DataFrame({
+        "選取": pd.Series(dtype='bool'),
         "Product": pd.Series(dtype='str'), "Catalyst": pd.Series(dtype='str'), "Loading (μl)": pd.Series(dtype='float'),
         "V vs RHE": pd.Series(dtype='float'), "稀釋倍率": pd.Series(dtype='float'), "Conc. (μmol)": pd.Series(dtype='float')
     })
 if 'gde_data' not in st.session_state:
     st.session_state.gde_data = pd.DataFrame({
+        "選取": pd.Series(dtype='bool'),
         "Product": pd.Series(dtype='str'), "Catalyst": pd.Series(dtype='str'), "Loading (μl)": pd.Series(dtype='float'),
         "V vs RHE": pd.Series(dtype='float'), "稀釋倍率": pd.Series(dtype='float'), "Acid C1 (mM)": pd.Series(dtype='float'), "RE C2 (mM)": pd.Series(dtype='float')
     })
@@ -50,7 +52,6 @@ with st.sidebar:
     with st.expander("JSON 設定檔操作", expanded=True):
         uploaded_json = st.file_uploader("📂 讀取設定 (.json)", type="json")
         if uploaded_json is not None:
-            # 💡 核心修復 2：確認這個檔案是不是剛剛才上傳的，避免每一次點擊按鈕都被重置
             if st.session_state.loaded_file_id != uploaded_json.file_id:
                 try:
                     data = json.load(uploaded_json)
@@ -65,12 +66,14 @@ with st.sidebar:
                     rows = data.get('rows', [])
                     if rows:
                         df = pd.DataFrame(rows)
+                        # 兼容舊版 JSON：如果沒有「選取」欄位，預設補上 False
+                        if '選取' not in df.columns: df['選取'] = False
+                        
                         mapping = {'product': 'Product', 'catalyst': 'Catalyst', 'volume_ul': 'Loading (μl)', 'v_rhe': 'V vs RHE', 'dilution': '稀釋倍率', 'conc': 'Conc. (μmol)', 'acid_c1': 'Acid C1 (mM)', 're_c2': 'RE C2 (mM)'}
                         df = df.rename(columns=mapping)
                         if gp.get('mode') == "H-cell": st.session_state.hcell_data = df[[c for c in st.session_state.hcell_data.columns if c in df.columns]]
                         else: st.session_state.gde_data = df[[c for c in st.session_state.gde_data.columns if c in df.columns]]
                     
-                    # 紀錄已讀取，並更換表格身份證強制重繪
                     st.session_state.loaded_file_id = uploaded_json.file_id
                     st.session_state.editor_key += 1
                     st.rerun()
@@ -117,46 +120,55 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量編輯)", expanded=
         if st.button("確認新增"):
             new_rows = []
             for _ in range(add_count):
+                # 💡 修改點：新增行時，預設選取狀態為 False
                 if "H-cell" in mode:
-                    new_rows.append({"Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "稀釋倍率": 1.0, "Conc. (μmol)": None})
+                    new_rows.append({"選取": False, "Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "稀釋倍率": 1.0, "Conc. (μmol)": None})
                 else:
-                    new_rows.append({"Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "稀釋倍率": 1.0, "Acid C1 (mM)": None, "RE C2 (mM)": None})
+                    new_rows.append({"選取": False, "Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "稀釋倍率": 1.0, "Acid C1 (mM)": None, "RE C2 (mM)": None})
             
             new_df = pd.DataFrame(new_rows)
             if "H-cell" in mode: st.session_state.hcell_data = pd.concat([st.session_state.hcell_data, new_df], ignore_index=True)
             else: st.session_state.gde_data = pd.concat([st.session_state.gde_data, new_df], ignore_index=True)
             
-            st.session_state.editor_key += 1 # 💡 更換身份證強制重繪表格
+            st.session_state.editor_key += 1 
             st.rerun()
 
     st.divider()
 
-    st.markdown("##### 🪄 批量修改 (留空則不修改)")
+    st.markdown("##### 🪄 批量修改 (請先在下方表格勾選要修改的行，留空則不修改)")
     col1, col2, col3, col4 = st.columns(4)
-    with col1: b_cat = st.text_input("批量更新催化劑")
-    with col2: b_load = st.text_input("批量更新 Loading (μl)")
-    with col3: b_vrhe = st.text_input("批量更新 V vs RHE")
-    with col4: b_dil = st.text_input("批量更新稀釋倍率")
+    with col1: b_cat = st.text_input("更新催化劑")
+    with col2: b_load = st.text_input("更新 Loading (μl)")
+    with col3: b_vrhe = st.text_input("更新 V vs RHE")
+    with col4: b_dil = st.text_input("更新稀釋倍率")
     
-    if st.button("套用批量修改"):
+    if st.button("套用修改至已選取行"):
         try:
             if "H-cell" in mode:
                 target_df = st.session_state.hcell_data.copy()
-                if b_cat: target_df["Catalyst"] = b_cat
-                if b_load: target_df["Loading (μl)"] = float(b_load)
-                if b_vrhe: target_df["V vs RHE"] = float(b_vrhe)
-                if b_dil: target_df["稀釋倍率"] = float(b_dil)
-                st.session_state.hcell_data = target_df
             else:
                 target_df = st.session_state.gde_data.copy()
-                if b_cat: target_df["Catalyst"] = b_cat
-                if b_load: target_df["Loading (μl)"] = float(b_load)
-                if b_vrhe: target_df["V vs RHE"] = float(b_vrhe)
-                if b_dil: target_df["稀釋倍率"] = float(b_dil)
-                st.session_state.gde_data = target_df
             
-            st.session_state.editor_key += 1 # 💡 核心修復 3：修改資料後，更換表格身份證強制重繪
-            st.rerun()
+            # 💡 核心修改：抓出所有有打勾的行
+            mask = target_df["選取"] == True
+            
+            if not mask.any():
+                # 防呆：如果沒有勾選任何行
+                st.warning("⚠️ 請先在下方表格左側勾選 (☑) 您要修改的行！")
+            else:
+                # 💡 核心修改：只更新有打勾 (mask) 的行
+                if b_cat: target_df.loc[mask, "Catalyst"] = b_cat
+                if b_load: target_df.loc[mask, "Loading (μl)"] = float(b_load)
+                if b_vrhe: target_df.loc[mask, "V vs RHE"] = float(b_vrhe)
+                if b_dil: target_df.loc[mask, "稀釋倍率"] = float(b_dil)
+                
+                if "H-cell" in mode:
+                    st.session_state.hcell_data = target_df
+                else:
+                    st.session_state.gde_data = target_df
+                
+                st.session_state.editor_key += 1
+                st.rerun()
         except ValueError:
             st.error("數值格式輸入錯誤！請確保 Loading, V vs RHE, 稀釋倍率 欄位中輸入的是數字。")
 
@@ -164,13 +176,14 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量編輯)", expanded=
 st.subheader(f"📊 數據輸入 - {mode}")
 current_df = st.session_state.hcell_data if "H-cell" in mode else st.session_state.gde_data
 
-# 💡 核心修復 4：將動態身份證 (key) 綁定到表格上
 edited_df = st.data_editor(
     current_df,
     key=f"data_editor_{mode}_{st.session_state.editor_key}",
     num_rows="dynamic",
     use_container_width=True,
     column_config={
+        # 💡 修改點：把「選取」欄位變成漂亮的打勾方塊，並調整寬度
+        "選取": st.column_config.CheckboxColumn("☑ 選取", default=False, width="small"),
         "Product": st.column_config.SelectboxColumn("產物", options=["NH3"] if is_n2_mode else ["NH3", "NO2"], required=True)
     }
 )
