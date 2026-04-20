@@ -22,6 +22,10 @@ GDE_FE_FORMULA = "(Total_n * 1e-6 * n_e * F) / Q * 100"
 today_str = datetime.date.today().strftime("%Y%m%d")
 
 # --- 初始化 Session State ---
+# 💡 核心修復 1：用來強制刷新表格的身份證 (Key)，以及防止 JSON 無限重複讀取的記錄
+if 'editor_key' not in st.session_state: st.session_state.editor_key = 0
+if 'loaded_file_id' not in st.session_state: st.session_state.loaded_file_id = ""
+
 if 'mode' not in st.session_state: st.session_state.mode = "GDE (雙槽)"
 if 'q_toggle' not in st.session_state: st.session_state.q_toggle = False
 if 'total_q' not in st.session_state: st.session_state.total_q = 100.0
@@ -46,25 +50,31 @@ with st.sidebar:
     with st.expander("JSON 設定檔操作", expanded=True):
         uploaded_json = st.file_uploader("📂 讀取設定 (.json)", type="json")
         if uploaded_json is not None:
-            try:
-                data = json.load(uploaded_json)
-                gp = data.get('global_params', {})
-                if 'mode' in gp: st.session_state.mode = "H-cell (單槽)" if gp['mode'] == "H-cell" else "GDE (雙槽)"
-                st.session_state.q_toggle = gp.get('gde_q_toggle', False)
-                st.session_state.total_q = gp.get('total_coulomb', 100.0)
-                st.session_state.electrolyte = gp.get('electrolyte', "0.5 M KNO3 + 0.1 M KOH")
-                st.session_state.acid_vol = gp.get('acid_vol', 10.0)
-                st.session_state.re_vol = gp.get('re_vol', 50.0)
-                
-                rows = data.get('rows', [])
-                if rows:
-                    df = pd.DataFrame(rows)
-                    mapping = {'product': 'Product', 'catalyst': 'Catalyst', 'volume_ul': 'Loading (μl)', 'v_rhe': 'V vs RHE', 'dilution': '稀釋倍率', 'conc': 'Conc. (μmol)', 'acid_c1': 'Acid C1 (mM)', 're_c2': 'RE C2 (mM)'}
-                    df = df.rename(columns=mapping)
-                    if gp.get('mode') == "H-cell": st.session_state.hcell_data = df[[c for c in st.session_state.hcell_data.columns if c in df.columns]]
-                    else: st.session_state.gde_data = df[[c for c in st.session_state.gde_data.columns if c in df.columns]]
-                st.success("✅ 已載入設定")
-            except: st.error("讀取失敗")
+            # 💡 核心修復 2：確認這個檔案是不是剛剛才上傳的，避免每一次點擊按鈕都被重置
+            if st.session_state.loaded_file_id != uploaded_json.file_id:
+                try:
+                    data = json.load(uploaded_json)
+                    gp = data.get('global_params', {})
+                    if 'mode' in gp: st.session_state.mode = "H-cell (單槽)" if gp['mode'] == "H-cell" else "GDE (雙槽)"
+                    st.session_state.q_toggle = gp.get('gde_q_toggle', False)
+                    st.session_state.total_q = gp.get('total_coulomb', 100.0)
+                    st.session_state.electrolyte = gp.get('electrolyte', "0.5 M KNO3 + 0.1 M KOH")
+                    st.session_state.acid_vol = gp.get('acid_vol', 10.0)
+                    st.session_state.re_vol = gp.get('re_vol', 50.0)
+                    
+                    rows = data.get('rows', [])
+                    if rows:
+                        df = pd.DataFrame(rows)
+                        mapping = {'product': 'Product', 'catalyst': 'Catalyst', 'volume_ul': 'Loading (μl)', 'v_rhe': 'V vs RHE', 'dilution': '稀釋倍率', 'conc': 'Conc. (μmol)', 'acid_c1': 'Acid C1 (mM)', 're_c2': 'RE C2 (mM)'}
+                        df = df.rename(columns=mapping)
+                        if gp.get('mode') == "H-cell": st.session_state.hcell_data = df[[c for c in st.session_state.hcell_data.columns if c in df.columns]]
+                        else: st.session_state.gde_data = df[[c for c in st.session_state.gde_data.columns if c in df.columns]]
+                    
+                    # 紀錄已讀取，並更換表格身份證強制重繪
+                    st.session_state.loaded_file_id = uploaded_json.file_id
+                    st.session_state.editor_key += 1
+                    st.rerun()
+                except: st.error("讀取失敗")
 
         st.divider()
         st.markdown("##### 💾 儲存設定")
@@ -115,6 +125,8 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量編輯)", expanded=
             new_df = pd.DataFrame(new_rows)
             if "H-cell" in mode: st.session_state.hcell_data = pd.concat([st.session_state.hcell_data, new_df], ignore_index=True)
             else: st.session_state.gde_data = pd.concat([st.session_state.gde_data, new_df], ignore_index=True)
+            
+            st.session_state.editor_key += 1 # 💡 更換身份證強制重繪表格
             st.rerun()
 
     st.divider()
@@ -142,6 +154,8 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量編輯)", expanded=
                 if b_vrhe: target_df["V vs RHE"] = float(b_vrhe)
                 if b_dil: target_df["稀釋倍率"] = float(b_dil)
                 st.session_state.gde_data = target_df
+            
+            st.session_state.editor_key += 1 # 💡 核心修復 3：修改資料後，更換表格身份證強制重繪
             st.rerun()
         except ValueError:
             st.error("數值格式輸入錯誤！請確保 Loading, V vs RHE, 稀釋倍率 欄位中輸入的是數字。")
@@ -150,14 +164,17 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量編輯)", expanded=
 st.subheader(f"📊 數據輸入 - {mode}")
 current_df = st.session_state.hcell_data if "H-cell" in mode else st.session_state.gde_data
 
+# 💡 核心修復 4：將動態身份證 (key) 綁定到表格上
 edited_df = st.data_editor(
     current_df,
+    key=f"data_editor_{mode}_{st.session_state.editor_key}",
     num_rows="dynamic",
     use_container_width=True,
     column_config={
         "Product": st.column_config.SelectboxColumn("產物", options=["NH3"] if is_n2_mode else ["NH3", "NO2"], required=True)
     }
 )
+
 if "H-cell" in mode: st.session_state.hcell_data = edited_df
 else: st.session_state.gde_data = edited_df
 
