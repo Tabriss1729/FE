@@ -139,11 +139,8 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
     st.divider()
 
     st.markdown("##### 🪄 批量修改與刪除 (請先在下方表格勾選 ☑)")
-    
-    # 💡 修改點：把欄位擴充成 5 欄，加入產物的下拉選單
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1: 
-        # 如果是通氮氣模式，就只能改 NH3
         prod_options = ["(不修改)", "NH3"] if is_n2_mode else ["(不修改)", "NH3", "NO2"]
         b_prod = st.selectbox("更新產物", options=prod_options)
     with col2: b_cat = st.text_input("更新催化劑")
@@ -162,9 +159,7 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
                 if not mask.any():
                     st.warning("⚠️ 請先在下方表格左側勾選 (☑) 您要修改的行！")
                 else:
-                    # 💡 判斷產物欄位是否有被修改
                     if b_prod != "(不修改)": target_df.loc[mask, "Product"] = b_prod
-                    
                     if b_cat: target_df.loc[mask, "Catalyst"] = b_cat
                     if b_load: target_df.loc[mask, "Loading (μl)"] = float(b_load)
                     if b_vrhe: target_df.loc[mask, "V vs RHE"] = float(b_vrhe)
@@ -206,7 +201,7 @@ current_df = st.session_state.hcell_data if "H-cell" in mode else st.session_sta
 edited_df = st.data_editor(
     current_df,
     key=f"data_editor_{mode}_{st.session_state.editor_key}",
-    num_rows="dynamic",
+    num_rows="fixed", # 💡 終極解法：設為 fixed 徹底禁用原生增減功能與原生打勾框
     use_container_width=True,
     hide_index=True,
     column_config={
@@ -346,4 +341,4 @@ if st.button("🔄 開始計算 FE", type="primary"):
         wb.save(out)
         return out.getvalue()
 
-    st.download_button("📥 下載 Excel", data=to_pro_excel(res_df, mode, electrolyte, total_q, is_n2_mode), file_name=excel_filename_final)
+    st.download_button("📥 下載專業排版 Excel", data=to_pro_excel(res_df, mode, electrolyte, total_q, is_n2_mode), file_name=excel_filename_final)
