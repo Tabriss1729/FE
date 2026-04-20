@@ -9,10 +9,19 @@ from openpyxl.styles import Alignment, Border, Side, Font
 
 # --- 1. 頁面與常數設定 ---
 st.set_page_config(page_title="Faradaic Efficiency 計算機", layout="wide")
+
+# 強制縮小 Streamlit 全站的上下間距
+st.markdown("""
+    <style>
+        div[data-testid="stVerticalBlock"] { gap: 0.3rem !important; }
+        div[data-testid="stExpanderDetails"] { gap: 0.2rem !important; }
+        .compact-hr { margin-top: 5px !important; margin-bottom: 5px !important; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.2); }
+    </style>
+""", unsafe_allow_html=True)
+
 st.title("⚡ Faradaic Efficiency 數據計算機")
 
 F_const = 96485
-# 固定計算公式
 HCELL_FORMULA = "(Conc * 50 * Dilution * 1e-6 * n_e * F) / Q * 100"
 GDE_N_FORMULA = "(C1 * V_acid + C2 * V_re) * Dilution"
 GDE_FE_FORMULA = "(Total_n * 1e-6 * n_e * F) / Q * 100"
@@ -21,30 +30,19 @@ GDE_FE_FORMULA = "(Total_n * 1e-6 * n_e * F) / Q * 100"
 if 'mode' not in st.session_state: st.session_state.mode = "GDE (雙槽)"
 if 'q_toggle' not in st.session_state: st.session_state.q_toggle = False
 if 'total_q' not in st.session_state: st.session_state.total_q = 100.0
-if 'electrolyte' not in st.session_state: st.session_state.electrolyte = "" # 預設清空
+if 'electrolyte' not in st.session_state: st.session_state.electrolyte = "" 
 if 'acid_vol' not in st.session_state: st.session_state.acid_vol = 10.0
 if 're_vol' not in st.session_state: st.session_state.re_vol = 50.0
 
-# 💡 修改點：將初始表格改為帶有型態的「完全空白 DataFrame」
 if 'hcell_data' not in st.session_state:
     st.session_state.hcell_data = pd.DataFrame({
-        "Product": pd.Series(dtype='str'),
-        "Catalyst": pd.Series(dtype='str'),
-        "Loading (μl)": pd.Series(dtype='float'),
-        "V vs RHE": pd.Series(dtype='float'),
-        "稀釋倍率": pd.Series(dtype='float'),
-        "Conc. (μmol)": pd.Series(dtype='float')
+        "Product": pd.Series(dtype='str'), "Catalyst": pd.Series(dtype='str'), "Loading (μl)": pd.Series(dtype='float'),
+        "V vs RHE": pd.Series(dtype='float'), "稀釋倍率": pd.Series(dtype='float'), "Conc. (μmol)": pd.Series(dtype='float')
     })
-
 if 'gde_data' not in st.session_state:
     st.session_state.gde_data = pd.DataFrame({
-        "Product": pd.Series(dtype='str'),
-        "Catalyst": pd.Series(dtype='str'),
-        "Loading (μl)": pd.Series(dtype='float'),
-        "V vs RHE": pd.Series(dtype='float'),
-        "稀釋倍率": pd.Series(dtype='float'),
-        "Acid C1 (mM)": pd.Series(dtype='float'),
-        "RE C2 (mM)": pd.Series(dtype='float')
+        "Product": pd.Series(dtype='str'), "Catalyst": pd.Series(dtype='str'), "Loading (μl)": pd.Series(dtype='float'),
+        "V vs RHE": pd.Series(dtype='float'), "稀釋倍率": pd.Series(dtype='float'), "Acid C1 (mM)": pd.Series(dtype='float'), "RE C2 (mM)": pd.Series(dtype='float')
     })
 
 # --- 2. 側邊欄：設定管理與實驗參數 ---
@@ -73,9 +71,9 @@ with st.sidebar:
                 st.success("✅ 已載入設定")
             except: st.error("讀取失敗")
 
-        st.divider()
-        st.markdown("##### 💾 儲存設定")
-        custom_json_name = st.text_input("自訂 JSON 檔名", value="FE_Config")
+        st.markdown("<hr class='compact-hr'>", unsafe_allow_html=True)
+        st.markdown("<p style='font-weight: 600; font-size: 15px; margin-bottom: 0px;'>💾 儲存設定</p>", unsafe_allow_html=True)
+        custom_json_name = st.text_input("自訂 JSON 檔名", value="FE_Config", label_visibility="collapsed")
         json_filename_final = f"{custom_json_name}.json" if not custom_json_name.endswith(".json") else custom_json_name
 
         save_data = {
@@ -106,14 +104,13 @@ with st.sidebar:
 
 # --- 3. 表格操作 ---
 with st.expander("🛠️ 表格操作 (新增行數 / 批量編輯)", expanded=False):
-    st.markdown("##### ➕ 批量新增空行")
+    st.markdown("<p style='font-weight: 600; font-size: 16px; margin-bottom: 5px;'>➕ 批量新增空行</p>", unsafe_allow_html=True)
     col_add1, col_add2, _ = st.columns([1, 1, 3])
     with col_add1:
         add_count = st.number_input("輸入要新增的行數", min_value=1, max_value=50, value=1, step=1, label_visibility="collapsed")
     with col_add2:
         if st.button("確認新增"):
             new_rows = []
-            # 💡 修改點：新增的行數預設改為空值 (None)
             for _ in range(add_count):
                 if "H-cell" in mode:
                     new_rows.append({"Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "稀釋倍率": 1.0, "Conc. (μmol)": None})
@@ -125,9 +122,9 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量編輯)", expanded=
             else: st.session_state.gde_data = pd.concat([st.session_state.gde_data, new_df], ignore_index=True)
             st.rerun()
 
-    st.divider()
+    st.markdown("<hr class='compact-hr'>", unsafe_allow_html=True)
 
-    st.markdown("##### 🪄 批量修改 (留空則不修改)")
+    st.markdown("<p style='font-weight: 600; font-size: 16px; margin-bottom: 0px;'>🪄 批量修改 (留空則不修改)</p>", unsafe_allow_html=True)
     col1, col2, col3, col4 = st.columns(4)
     with col1: b_cat = st.text_input("批量更新催化劑")
     with col2: b_load = st.text_input("批量更新 Loading (μl)")
@@ -158,7 +155,7 @@ if "H-cell" in mode: st.session_state.hcell_data = edited_df
 else: st.session_state.gde_data = edited_df
 
 # --- 5. 計算與匯出設定 ---
-st.divider()
+st.markdown("<hr class='compact-hr'>", unsafe_allow_html=True)
 st.subheader("📥 計算與匯出")
 
 col_name1, _ = st.columns([1, 2])
@@ -197,27 +194,98 @@ if st.button("🔄 開始計算 FE", type="primary"):
     res_df["FE (%)"] = fe_res
     st.dataframe(res_df, use_container_width=True)
 
-    def to_pro_excel(df, m, el, q_val, n2):
-        def sub(t): return re.sub(r'([a-zA-Z])(\d+)', lambda m: m.group(1) + m.group(2).translate(str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")), str(t))
+    # 🌟 完美復刻：專業級 Excel 合併排版邏輯
+    def to_pro_excel(df, curr_mode, curr_electrolyte, curr_Q, is_n2):
+        def apply_subscript(text):
+            if pd.isna(text): return ""
+            text_str = str(text)
+            try:
+                f_val = float(text_str)
+                if np.isnan(f_val): return ""
+                return int(f_val) if f_val.is_integer() else f_val
+            except ValueError: pass
+            subscript_map = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+            return re.sub(r'([a-zA-Z])(\d+)', lambda m: m.group(1) + m.group(2).translate(subscript_map), text_str)
+
         wb = Workbook()
         ws = wb.active
         ws.title = "FE_Results"
+        thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+        # 將數據轉換為目標欄位格式
+        export_data = []
+        gas_mode_str = "N2_Gas" if is_n2 else "Ar_Gas"
+
+        for _, row in df.iterrows():
+            if "H-cell" in curr_mode:
+                export_data.append({
+                    'Cell': f"H-cell({row['Product']})", 'Electrolyte': curr_electrolyte, 'Total Coulomb (Q)': curr_Q,
+                    'Product Type': row['Product'], 'Catalyst': row['Catalyst'], 'Loading (μl)': row['Loading (μl)'],
+                    '稀釋倍率': row['稀釋倍率'], 'V vs RHE': row['V vs RHE'], 'Total Concentration (μmol)': row['Conc. (μmol)'],
+                    'Faradaic Efficiency (%)': row['FE (%)']
+                })
+            else:
+                export_data.append({
+                    'Cell': f"GDE_{gas_mode_str}({row['Product']})", 'Electrolyte': curr_electrolyte, 'Total Coulomb (Q)': curr_Q,
+                    'Product Type': row['Product'], 'Catalyst': row['Catalyst'], 'Loading (μl)': row['Loading (μl)'],
+                    '稀釋倍率': row['稀釋倍率'], 'V vs RHE': row['V vs RHE'], 'Acid C1 (mM)': row['Acid C1 (mM)'], 
+                    'RE C2 (mM)': row['RE C2 (mM)'], 'Total Concentration (μmol)': row['Total n (μmol)'], 'Faradaic Efficiency (%)': row['FE (%)']
+                })
+                
+        df_export = pd.DataFrame(export_data)
+
         cur_row = 1
-        for prod, group in df.groupby("Product"):
+        for prod, group in df_export.groupby("Product Type"):
             cols = list(group.columns)
+            
+            # 寫入標題
             for c_idx, c_name in enumerate(cols):
-                cell = ws.cell(row=cur_row, column=c_idx+1, value=sub(c_name))
+                cell = ws.cell(row=cur_row, column=c_idx+1, value=apply_subscript(c_name))
                 cell.font = Font(bold=True)
-                cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+                cell.border = thin_border
+                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             
             start_r = cur_row + 1
+            # 寫入數據
             for r_idx, r_data in enumerate(group.values.tolist()):
                 for c_idx, val in enumerate(r_data):
-                    cell = ws.cell(row=start_r+r_idx, column=c_idx+1, value=sub(val))
-                    cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-                    cell.alignment = Alignment(horizontal='center')
-            cur_row = start_r + len(group) + 1
-        
+                    cell = ws.cell(row=start_r+r_idx, column=c_idx+1, value=apply_subscript(val))
+                    cell.border = thin_border
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+            
+            end_r = start_r + len(group) - 1
+
+            # 🪄 核心合併邏輯
+            if end_r > start_r:
+                # Level 1: 全局合併 (Cell, Electrolyte, Q, Product, 稀釋倍率) -> 對應第 1, 2, 3, 4, 7 欄
+                for col_idx in [1, 2, 3, 4, 7]:
+                    ws.merge_cells(start_row=start_r, end_row=end_r, start_column=col_idx, end_column=col_idx)
+
+                # Level 2: 根據催化劑區塊合併 (Catalyst, Loading) -> 對應第 5, 6 欄
+                catalyst_starts = start_r
+                current_cat = ws.cell(row=start_r, column=5).value
+                for r in range(start_r + 1, end_r + 2):
+                    cell_val = ws.cell(row=r, column=5).value if r <= end_r else None
+                    if cell_val != current_cat:
+                        if (r - 1) > catalyst_starts:
+                            ws.merge_cells(start_row=catalyst_starts, end_row=r-1, start_column=5, end_column=5)
+                            ws.merge_cells(start_row=catalyst_starts, end_row=r-1, start_column=6, end_column=6)
+                        catalyst_starts = r
+                        current_cat = cell_val
+
+            cur_row = end_r + 2 # 表格之間留一行空白
+
+        # 自動調整欄寬
+        for col in ws.columns:
+            max_length = 0
+            column_letter = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except: pass
+            ws.column_dimensions[column_letter].width = (max_length + 2) * 1.2
+
         out = BytesIO()
         wb.save(out)
         return out.getvalue()
