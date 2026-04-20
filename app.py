@@ -7,25 +7,43 @@ import datetime
 from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Side, Font
+import extra_streamlit_components as stx
 
 # --- 1. 頁面與常數設定 ---
 st.set_page_config(page_title="Faradaic Efficiency 計算機", layout="wide")
+
+@st.experimental_dialog("🎉 歡迎使用 FE 數據計算機！(新手快速導覽)")
+def show_tutorial(cookie_manager):
+    st.write("偵測到您是第一次使用本系統！讓我們花 30 秒了解核心功能：")
+    st.info("💡 **小提示**：本系統的所有計算都在您的瀏覽器與雲端伺服器間安全進行。")
+    st.markdown("""
+    1. **📂 讀取舊有設定**：將之前的 `.json` 檔拖曳到左側側邊欄。
+    2. **➕ 批量新增空行**：在下方設定需要幾行數據，可一次展開表格。
+    3. **🪄 批量修改**：快速將所有數據列套用相同的催化劑或稀釋倍率。
+    4. **📥 下載專業報表**：點擊計算後，下載的 Excel 會自動為您合併儲存格並加上化學下標！
+    """)
+    st.write("準備好開始了嗎？")
+    if st.button("我了解了！開始使用", type="primary", use_container_width=True):
+        cookie_manager.set('has_seen_tutorial', 'true', max_age=3650*24*60*60)
+        st.rerun()
+
+cookie_manager = stx.CookieManager()
+if cookie_manager.get_all() is not None:
+    if cookie_manager.get('has_seen_tutorial') != 'true':
+        show_tutorial(cookie_manager)
+
 st.title("⚡ Faradaic Efficiency 數據計算機")
 
 F_const = 96485
-# 固定計算公式
 HCELL_FORMULA = "(Conc * 50 * Dilution * 1e-6 * n_e * F) / Q * 100"
 GDE_N_FORMULA = "(C1 * V_acid + C2 * V_re) * Dilution"
 GDE_FE_FORMULA = "(Total_n * 1e-6 * n_e * F) / Q * 100"
-
-# 獲取當天日期 (格式如: 20240520)
 today_str = datetime.date.today().strftime("%Y%m%d")
 
 # --- 初始化 Session State ---
 if 'mode' not in st.session_state: st.session_state.mode = "GDE (雙槽)"
 if 'q_toggle' not in st.session_state: st.session_state.q_toggle = False
 if 'total_q' not in st.session_state: st.session_state.total_q = 100.0
-# 💡 修改點：將預設電解液設定為 0.5 M KNO3 + 0.1 M KOH
 if 'electrolyte' not in st.session_state: st.session_state.electrolyte = "0.5 M KNO3 + 0.1 M KOH" 
 if 'acid_vol' not in st.session_state: st.session_state.acid_vol = 10.0
 if 're_vol' not in st.session_state: st.session_state.re_vol = 50.0
@@ -53,7 +71,6 @@ with st.sidebar:
                 if 'mode' in gp: st.session_state.mode = "H-cell (單槽)" if gp['mode'] == "H-cell" else "GDE (雙槽)"
                 st.session_state.q_toggle = gp.get('gde_q_toggle', False)
                 st.session_state.total_q = gp.get('total_coulomb', 100.0)
-                # 💡 修改點：讀取 JSON 時如果沒有值，也預設帶入 0.5 M KNO3 + 0.1 M KOH
                 st.session_state.electrolyte = gp.get('electrolyte', "0.5 M KNO3 + 0.1 M KOH")
                 st.session_state.acid_vol = gp.get('acid_vol', 10.0)
                 st.session_state.re_vol = gp.get('re_vol', 50.0)
@@ -129,12 +146,25 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量編輯)", expanded=
     with col4: b_dil = st.text_input("批量更新稀釋倍率")
     
     if st.button("套用批量修改"):
-        target_df = st.session_state.hcell_data if "H-cell" in mode else st.session_state.gde_data
-        if b_cat: target_df["Catalyst"] = b_cat
-        if b_load: target_df["Loading (μl)"] = float(b_load)
-        if b_vrhe: target_df["V vs RHE"] = float(b_vrhe)
-        if b_dil: target_df["稀釋倍率"] = float(b_dil)
-        st.rerun()
+        # 💡 核心修正：使用 .copy() 創造全新資料表，並明確覆寫回 session_state
+        try:
+            if "H-cell" in mode:
+                target_df = st.session_state.hcell_data.copy()
+                if b_cat: target_df["Catalyst"] = b_cat
+                if b_load: target_df["Loading (μl)"] = float(b_load)
+                if b_vrhe: target_df["V vs RHE"] = float(b_vrhe)
+                if b_dil: target_df["稀釋倍率"] = float(b_dil)
+                st.session_state.hcell_data = target_df
+            else:
+                target_df = st.session_state.gde_data.copy()
+                if b_cat: target_df["Catalyst"] = b_cat
+                if b_load: target_df["Loading (μl)"] = float(b_load)
+                if b_vrhe: target_df["V vs RHE"] = float(b_vrhe)
+                if b_dil: target_df["稀釋倍率"] = float(b_dil)
+                st.session_state.gde_data = target_df
+            st.rerun()
+        except ValueError:
+            st.error("數值格式輸入錯誤！請確保 Loading, V vs RHE, 稀釋倍率 欄位中輸入的是數字。")
 
 # --- 4. 數據表格 ---
 st.subheader(f"📊 數據輸入 - {mode}")
