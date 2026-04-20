@@ -45,7 +45,7 @@ if 'gde_data' not in st.session_state:
         "V vs RHE": pd.Series(dtype='float'), "稀釋倍率": pd.Series(dtype='float'), "Acid C1 (mM)": pd.Series(dtype='float'), "RE C2 (mM)": pd.Series(dtype='float')
     })
 
-# 💡 終極防呆：強制修復舊版 Cache 遺失「選取」欄位的問題
+# 強制修復舊版 Cache 遺失「選取」欄位的問題
 if '選取' not in st.session_state.hcell_data.columns:
     st.session_state.hcell_data.insert(0, '選取', False)
 if '選取' not in st.session_state.gde_data.columns:
@@ -115,7 +115,7 @@ with st.sidebar:
         st.session_state.re_vol = st.number_input("RE 側體積 (mL)", value=float(st.session_state.re_vol))
 
 # --- 3. 表格操作 ---
-with st.expander("🛠️ 表格操作 (新增行數 / 批量編輯)", expanded=False):
+with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", expanded=False):
     st.markdown("##### ➕ 批量新增空行")
     col_add1, col_add2, _ = st.columns([1, 1, 3])
     with col_add1:
@@ -138,46 +138,66 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量編輯)", expanded=
 
     st.divider()
 
-    st.markdown("##### 🪄 批量修改 (請先在下方表格勾選要修改的行，留空則不修改)")
-    col1, col2, col3, col4 = st.columns(4)
-    with col1: b_cat = st.text_input("更新催化劑")
-    with col2: b_load = st.text_input("更新 Loading (μl)")
-    with col3: b_vrhe = st.text_input("更新 V vs RHE")
-    with col4: b_dil = st.text_input("更新稀釋倍率")
+    st.markdown("##### 🪄 批量修改與刪除 (請先在下方表格勾選 ☑)")
     
-    if st.button("套用修改至已選取行"):
-        try:
-            if "H-cell" in mode:
-                target_df = st.session_state.hcell_data.copy()
-            else:
-                target_df = st.session_state.gde_data.copy()
-            
-            # 💡 雙重防呆：如果到這一步 target_df 還是沒有選取欄位，強制補上
-            if "選取" not in target_df.columns:
-                target_df.insert(0, "選取", False)
-
-            mask = target_df["選取"] == True
-            
-            if not mask.any():
-                st.warning("⚠️ 請先在下方表格左側勾選 (☑) 您要修改的行！")
-            else:
-                if b_cat: target_df.loc[mask, "Catalyst"] = b_cat
-                if b_load: target_df.loc[mask, "Loading (μl)"] = float(b_load)
-                if b_vrhe: target_df.loc[mask, "V vs RHE"] = float(b_vrhe)
-                if b_dil: target_df.loc[mask, "稀釋倍率"] = float(b_dil)
+    # 💡 修改點：把欄位擴充成 5 欄，加入產物的下拉選單
+    col1, col2, col3, col4, col5 = st.columns(5)
+    with col1: 
+        # 如果是通氮氣模式，就只能改 NH3
+        prod_options = ["(不修改)", "NH3"] if is_n2_mode else ["(不修改)", "NH3", "NO2"]
+        b_prod = st.selectbox("更新產物", options=prod_options)
+    with col2: b_cat = st.text_input("更新催化劑")
+    with col3: b_load = st.text_input("更新 Loading (μl)")
+    with col4: b_vrhe = st.text_input("更新 V vs RHE")
+    with col5: b_dil = st.text_input("更新稀釋倍率")
+    
+    col_btn1, col_btn2, _ = st.columns([2, 2, 4])
+    with col_btn1:
+        if st.button("🪄 套用修改至已選取行", use_container_width=True):
+            try:
+                target_df = st.session_state.hcell_data.copy() if "H-cell" in mode else st.session_state.gde_data.copy()
+                if "選取" not in target_df.columns: target_df.insert(0, "選取", False)
+                mask = target_df["選取"] == True
                 
-                # 修改完後自動取消勾選，方便下次操作
-                target_df["選取"] = False 
-
-                if "H-cell" in mode:
-                    st.session_state.hcell_data = target_df
+                if not mask.any():
+                    st.warning("⚠️ 請先在下方表格左側勾選 (☑) 您要修改的行！")
                 else:
-                    st.session_state.gde_data = target_df
+                    # 💡 判斷產物欄位是否有被修改
+                    if b_prod != "(不修改)": target_df.loc[mask, "Product"] = b_prod
+                    
+                    if b_cat: target_df.loc[mask, "Catalyst"] = b_cat
+                    if b_load: target_df.loc[mask, "Loading (μl)"] = float(b_load)
+                    if b_vrhe: target_df.loc[mask, "V vs RHE"] = float(b_vrhe)
+                    if b_dil: target_df.loc[mask, "稀釋倍率"] = float(b_dil)
+                    
+                    target_df["選取"] = False  # 修改完自動取消勾選
+                    if "H-cell" in mode: st.session_state.hcell_data = target_df
+                    else: st.session_state.gde_data = target_df
+                    
+                    st.session_state.editor_key += 1
+                    st.rerun()
+            except ValueError:
+                st.error("數值格式輸入錯誤！請確保 Loading, V vs RHE, 稀釋倍率 欄位中輸入的是數字。")
+
+    with col_btn2:
+        if st.button("❌ 刪除已選取行", use_container_width=True):
+            try:
+                target_df = st.session_state.hcell_data.copy() if "H-cell" in mode else st.session_state.gde_data.copy()
+                if "選取" not in target_df.columns: target_df.insert(0, "選取", False)
+                mask = target_df["選取"] == True
                 
-                st.session_state.editor_key += 1
-                st.rerun()
-        except ValueError:
-            st.error("數值格式輸入錯誤！請確保 Loading, V vs RHE, 稀釋倍率 欄位中輸入的是數字。")
+                if not mask.any():
+                    st.warning("⚠️ 請先在下方表格左側勾選 (☑) 您要刪除的行！")
+                else:
+                    target_df = target_df[~mask].reset_index(drop=True)
+                    
+                    if "H-cell" in mode: st.session_state.hcell_data = target_df
+                    else: st.session_state.gde_data = target_df
+                    
+                    st.session_state.editor_key += 1
+                    st.rerun()
+            except Exception as e:
+                st.error(f"刪除失敗: {e}")
 
 # --- 4. 數據表格 ---
 st.subheader(f"📊 數據輸入 - {mode}")
@@ -188,6 +208,7 @@ edited_df = st.data_editor(
     key=f"data_editor_{mode}_{st.session_state.editor_key}",
     num_rows="dynamic",
     use_container_width=True,
+    hide_index=True,
     column_config={
         "選取": st.column_config.CheckboxColumn("☑ 選取", default=False, width="small"),
         "Product": st.column_config.SelectboxColumn("產物", options=["NH3"] if is_n2_mode else ["NH3", "NO2"], required=True)
@@ -236,7 +257,6 @@ if st.button("🔄 開始計算 FE", type="primary"):
     if "GDE" in mode: res_df["Total n (μmol)"] = tn_res
     res_df["FE (%)"] = fe_res
     
-    # 畫面上顯示時把「選取」欄位隱藏，比較美觀
     st.dataframe(res_df.drop(columns=["選取"], errors='ignore'), use_container_width=True)
 
     def to_pro_excel(df, curr_mode, curr_electrolyte, curr_Q, is_n2):
