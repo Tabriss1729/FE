@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import json
 import re
+import datetime
 from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Side, Font
@@ -17,11 +18,15 @@ HCELL_FORMULA = "(Conc * 50 * Dilution * 1e-6 * n_e * F) / Q * 100"
 GDE_N_FORMULA = "(C1 * V_acid + C2 * V_re) * Dilution"
 GDE_FE_FORMULA = "(Total_n * 1e-6 * n_e * F) / Q * 100"
 
+# 獲取當天日期 (格式如: 20240520)
+today_str = datetime.date.today().strftime("%Y%m%d")
+
 # --- 初始化 Session State ---
 if 'mode' not in st.session_state: st.session_state.mode = "GDE (雙槽)"
 if 'q_toggle' not in st.session_state: st.session_state.q_toggle = False
 if 'total_q' not in st.session_state: st.session_state.total_q = 100.0
-if 'electrolyte' not in st.session_state: st.session_state.electrolyte = "" 
+# 💡 修改點：將預設電解液設定為 0.5 M KNO3 + 0.1 M KOH
+if 'electrolyte' not in st.session_state: st.session_state.electrolyte = "0.5 M KNO3 + 0.1 M KOH" 
 if 'acid_vol' not in st.session_state: st.session_state.acid_vol = 10.0
 if 're_vol' not in st.session_state: st.session_state.re_vol = 50.0
 
@@ -48,7 +53,8 @@ with st.sidebar:
                 if 'mode' in gp: st.session_state.mode = "H-cell (單槽)" if gp['mode'] == "H-cell" else "GDE (雙槽)"
                 st.session_state.q_toggle = gp.get('gde_q_toggle', False)
                 st.session_state.total_q = gp.get('total_coulomb', 100.0)
-                st.session_state.electrolyte = gp.get('electrolyte', "")
+                # 💡 修改點：讀取 JSON 時如果沒有值，也預設帶入 0.5 M KNO3 + 0.1 M KOH
+                st.session_state.electrolyte = gp.get('electrolyte', "0.5 M KNO3 + 0.1 M KOH")
                 st.session_state.acid_vol = gp.get('acid_vol', 10.0)
                 st.session_state.re_vol = gp.get('re_vol', 50.0)
                 
@@ -65,7 +71,7 @@ with st.sidebar:
         st.divider()
         st.markdown("##### 💾 儲存設定")
         custom_json_name = st.text_input("自訂 JSON 檔名", value="FE_Config")
-        json_filename_final = f"{custom_json_name}.json" if not custom_json_name.endswith(".json") else custom_json_name
+        json_filename_final = f"{today_str}_{custom_json_name}.json"
 
         save_data = {
             'global_params': {'mode': "H-cell" if "H-cell" in st.session_state.mode else "GDE", 'total_coulomb': st.session_state.total_q, 'electrolyte': st.session_state.electrolyte, 'acid_vol': st.session_state.acid_vol, 're_vol': st.session_state.re_vol, 'gde_q_toggle': st.session_state.q_toggle},
@@ -158,7 +164,7 @@ with col_name1:
         default_excel_name = f"FE_Result_GDE_{gas_str}"
         
     custom_excel_name = st.text_input("自訂 Excel 檔名", value=default_excel_name)
-    excel_filename_final = f"{custom_excel_name}.xlsx" if not custom_excel_name.endswith(".xlsx") else custom_excel_name
+    excel_filename_final = f"{today_str}_{custom_excel_name}.xlsx"
 
 if st.button("🔄 開始計算 FE", type="primary"):
     res_df = edited_df.copy()
