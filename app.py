@@ -32,7 +32,6 @@ if 'electrolyte' not in st.session_state: st.session_state.electrolyte = "0.5 M 
 if 'acid_vol' not in st.session_state: st.session_state.acid_vol = 10.0
 if 're_vol' not in st.session_state: st.session_state.re_vol = 50.0
 
-# 💡 修改點：在 DataFrame 初始化時，加入「選取」欄位
 if 'hcell_data' not in st.session_state:
     st.session_state.hcell_data = pd.DataFrame({
         "選取": pd.Series(dtype='bool'),
@@ -45,6 +44,12 @@ if 'gde_data' not in st.session_state:
         "Product": pd.Series(dtype='str'), "Catalyst": pd.Series(dtype='str'), "Loading (μl)": pd.Series(dtype='float'),
         "V vs RHE": pd.Series(dtype='float'), "稀釋倍率": pd.Series(dtype='float'), "Acid C1 (mM)": pd.Series(dtype='float'), "RE C2 (mM)": pd.Series(dtype='float')
     })
+
+# 💡 終極防呆：強制修復舊版 Cache 遺失「選取」欄位的問題
+if '選取' not in st.session_state.hcell_data.columns:
+    st.session_state.hcell_data.insert(0, '選取', False)
+if '選取' not in st.session_state.gde_data.columns:
+    st.session_state.gde_data.insert(0, '選取', False)
 
 # --- 2. 側邊欄：設定管理與實驗參數 ---
 with st.sidebar:
@@ -66,7 +71,6 @@ with st.sidebar:
                     rows = data.get('rows', [])
                     if rows:
                         df = pd.DataFrame(rows)
-                        # 兼容舊版 JSON：如果沒有「選取」欄位，預設補上 False
                         if '選取' not in df.columns: df['選取'] = False
                         
                         mapping = {'product': 'Product', 'catalyst': 'Catalyst', 'volume_ul': 'Loading (μl)', 'v_rhe': 'V vs RHE', 'dilution': '稀釋倍率', 'conc': 'Conc. (μmol)', 'acid_c1': 'Acid C1 (mM)', 're_c2': 'RE C2 (mM)'}
@@ -120,7 +124,6 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量編輯)", expanded=
         if st.button("確認新增"):
             new_rows = []
             for _ in range(add_count):
-                # 💡 修改點：新增行時，預設選取狀態為 False
                 if "H-cell" in mode:
                     new_rows.append({"選取": False, "Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "稀釋倍率": 1.0, "Conc. (μmol)": None})
                 else:
@@ -149,19 +152,23 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量編輯)", expanded=
             else:
                 target_df = st.session_state.gde_data.copy()
             
-            # 💡 核心修改：抓出所有有打勾的行
+            # 💡 雙重防呆：如果到這一步 target_df 還是沒有選取欄位，強制補上
+            if "選取" not in target_df.columns:
+                target_df.insert(0, "選取", False)
+
             mask = target_df["選取"] == True
             
             if not mask.any():
-                # 防呆：如果沒有勾選任何行
                 st.warning("⚠️ 請先在下方表格左側勾選 (☑) 您要修改的行！")
             else:
-                # 💡 核心修改：只更新有打勾 (mask) 的行
                 if b_cat: target_df.loc[mask, "Catalyst"] = b_cat
                 if b_load: target_df.loc[mask, "Loading (μl)"] = float(b_load)
                 if b_vrhe: target_df.loc[mask, "V vs RHE"] = float(b_vrhe)
                 if b_dil: target_df.loc[mask, "稀釋倍率"] = float(b_dil)
                 
+                # 修改完後自動取消勾選，方便下次操作
+                target_df["選取"] = False 
+
                 if "H-cell" in mode:
                     st.session_state.hcell_data = target_df
                 else:
@@ -182,7 +189,6 @@ edited_df = st.data_editor(
     num_rows="dynamic",
     use_container_width=True,
     column_config={
-        # 💡 修改點：把「選取」欄位變成漂亮的打勾方塊，並調整寬度
         "選取": st.column_config.CheckboxColumn("☑ 選取", default=False, width="small"),
         "Product": st.column_config.SelectboxColumn("產物", options=["NH3"] if is_n2_mode else ["NH3", "NO2"], required=True)
     }
@@ -229,7 +235,9 @@ if st.button("🔄 開始計算 FE", type="primary"):
     
     if "GDE" in mode: res_df["Total n (μmol)"] = tn_res
     res_df["FE (%)"] = fe_res
-    st.dataframe(res_df, use_container_width=True)
+    
+    # 畫面上顯示時把「選取」欄位隱藏，比較美觀
+    st.dataframe(res_df.drop(columns=["選取"], errors='ignore'), use_container_width=True)
 
     def to_pro_excel(df, curr_mode, curr_electrolyte, curr_Q, is_n2):
         def apply_subscript(text):
