@@ -222,4 +222,4 @@ if st.button("🔄 開始計算 FE", type="primary"):
         wb.save(out)
         return out.getvalue()
 
-    st.download_button("📥 下載專業排版 Excel", data=to_pro_excel(res_df, mode, electrolyte, total_q, is_n2_mode), file_name=excel_filename_final)
+    st.download_button("📥 下載 Excel", data=to_pro_excel(res_df, mode, electrolyte, total_q, is_n2_mode), file_name=excel_filename_final)
