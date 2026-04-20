@@ -7,37 +7,18 @@ import datetime
 from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Side, Font
-import extra_streamlit_components as stx
 
 # --- 1. 頁面與常數設定 ---
 st.set_page_config(page_title="Faradaic Efficiency 計算機", layout="wide")
-
-@st.experimental_dialog("🎉 歡迎使用 FE 數據計算機！(新手快速導覽)")
-def show_tutorial(cookie_manager):
-    st.write("偵測到您是第一次使用本系統！讓我們花 30 秒了解核心功能：")
-    st.info("💡 **小提示**：本系統的所有計算都在您的瀏覽器與雲端伺服器間安全進行。")
-    st.markdown("""
-    1. **📂 讀取舊有設定**：將之前的 `.json` 檔拖曳到左側側邊欄。
-    2. **➕ 批量新增空行**：在下方設定需要幾行數據，可一次展開表格。
-    3. **🪄 批量修改**：快速將所有數據列套用相同的催化劑或稀釋倍率。
-    4. **📥 下載專業報表**：點擊計算後，下載的 Excel 會自動為您合併儲存格並加上化學下標！
-    """)
-    st.write("準備好開始了嗎？")
-    if st.button("我了解了！開始使用", type="primary", use_container_width=True):
-        cookie_manager.set('has_seen_tutorial', 'true', max_age=3650*24*60*60)
-        st.rerun()
-
-cookie_manager = stx.CookieManager()
-if cookie_manager.get_all() is not None:
-    if cookie_manager.get('has_seen_tutorial') != 'true':
-        show_tutorial(cookie_manager)
-
 st.title("⚡ Faradaic Efficiency 數據計算機")
 
 F_const = 96485
+# 固定計算公式
 HCELL_FORMULA = "(Conc * 50 * Dilution * 1e-6 * n_e * F) / Q * 100"
 GDE_N_FORMULA = "(C1 * V_acid + C2 * V_re) * Dilution"
 GDE_FE_FORMULA = "(Total_n * 1e-6 * n_e * F) / Q * 100"
+
+# 獲取當天日期 (格式如: 20240520)
 today_str = datetime.date.today().strftime("%Y%m%d")
 
 # --- 初始化 Session State ---
@@ -146,7 +127,6 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量編輯)", expanded=
     with col4: b_dil = st.text_input("批量更新稀釋倍率")
     
     if st.button("套用批量修改"):
-        # 💡 核心修正：使用 .copy() 創造全新資料表，並明確覆寫回 session_state
         try:
             if "H-cell" in mode:
                 target_df = st.session_state.hcell_data.copy()
