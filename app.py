@@ -45,7 +45,6 @@ if 'gde_data' not in st.session_state:
         "V vs RHE": pd.Series(dtype='float'), "Dilution Factor": pd.Series(dtype='float'), "Acid C1 (mM)": pd.Series(dtype='float'), "RE C2 (mM)": pd.Series(dtype='float')
     })
 
-# 強制修復舊版 Cache 遺失「選取」欄位的問題
 if '選取' not in st.session_state.hcell_data.columns:
     st.session_state.hcell_data.insert(0, '選取', False)
 if '選取' not in st.session_state.gde_data.columns:
@@ -59,7 +58,10 @@ with st.sidebar:
         if uploaded_json is not None:
             if st.session_state.loaded_file_id != uploaded_json.file_id:
                 try:
-                    data = json.load(uploaded_json)
+                    # 💡 核心修復：使用更安全的字串讀取方式，避免檔案指標遺失
+                    file_content = uploaded_json.getvalue().decode("utf-8")
+                    data = json.loads(file_content)
+                    
                     gp = data.get('global_params', {})
                     if 'mode' in gp: st.session_state.mode = "H-cell (單槽)" if gp['mode'] == "H-cell" else "GDE (雙槽)"
                     st.session_state.q_toggle = gp.get('gde_q_toggle', False)
@@ -73,7 +75,6 @@ with st.sidebar:
                         df = pd.DataFrame(rows)
                         if '選取' not in df.columns: df['選取'] = False
                         
-                        # 加入 '稀釋倍率': 'Dilution Factor' 確保向下相容舊版 JSON
                         mapping = {'product': 'Product', 'catalyst': 'Catalyst', 'volume_ul': 'Loading (μl)', 'v_rhe': 'V vs RHE', 'dilution': 'Dilution Factor', '稀釋倍率': 'Dilution Factor', 'conc': 'Conc. (μmol)', 'acid_c1': 'Acid C1 (mM)', 're_c2': 'RE C2 (mM)'}
                         df = df.rename(columns=mapping)
                         if gp.get('mode') == "H-cell": st.session_state.hcell_data = df[[c for c in st.session_state.hcell_data.columns if c in df.columns]]
@@ -82,7 +83,9 @@ with st.sidebar:
                     st.session_state.loaded_file_id = uploaded_json.file_id
                     st.session_state.editor_key += 1
                     st.rerun()
-                except: st.error("讀取失敗")
+                except Exception as e:
+                    # 💡 核心修復：如果失敗，印出真正的紅色錯誤代碼
+                    st.error(f"讀取失敗！詳細原因: {e}")
 
         st.divider()
         st.markdown("##### 💾 儲存設定")
@@ -109,7 +112,6 @@ with st.sidebar:
     total_q = st.number_input("總電量 Q (C)", value=float(st.session_state.total_q), step=10.0)
     st.session_state.total_q = total_q
     
-    # 標題換成 Electrolyte
     electrolyte = st.text_input("Electrolyte", value=st.session_state.electrolyte)
     st.session_state.electrolyte = electrolyte
 
@@ -361,4 +363,4 @@ if st.button("🔄 開始計算 FE", type="primary"):
         wb.save(out)
         return out.getvalue()
 
-    st.download_button("📥 下載 Excel", data=to_pro_excel(res_df, mode, electrolyte, total_q, is_n2_mode), file_name=excel_filename_final)
+    st.download_button("📥 下載專業排版 Excel", data=to_pro_excel(res_df, mode, electrolyte, total_q, is_n2_mode), file_name=excel_filename_final)
