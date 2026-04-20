@@ -1,65 +1,178 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd">
-<html><head>
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="qrichtext" content="1" /><style type="text/css">
-p, li { white-space: pre-wrap; }
-</style></head><body style=" font-family:'Consolas'; font-size:10pt; font-weight:400; font-style:normal;">
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">Python 3.11.7 | packaged by Anaconda, Inc. | (main, Dec 15 2023, 18:05:47) [MSC v.1916 64 bit (AMD64)]</p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">Type &quot;copyright&quot;, &quot;credits&quot; or &quot;license&quot; for more information.</p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">IPython 8.20.0 -- An enhanced Interactive Python.</p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><span style=" color:#00ff00;">In [</span><span style=" font-weight:600; color:#00ff00;">1</span><span style=" color:#00ff00;">]:</span> runfile('C:/Users/user/OneDrive/桌面/untitled0.py', wdir='C:/Users/user/OneDrive/桌面')</p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">2026-04-20 11:20:53.769 </p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">  <span style=" color:#ffff00;">Warning:</span> to view this Streamlit app on a browser, run it with the following</p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">  command:</p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">    streamlit run c:\users\user\onedrive\桌面\untitled0.py [ARGUMENTS]</p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">2026-04-20 11:20:53.774 Session state does not function when running a script without `streamlit run`</p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">Traceback <span style=" color:#00ffff;">(most recent call last)</span>:</p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">  File <span style=" color:#006400;">~\anaconda3\Lib\site-packages\streamlit\runtime\state\session_state.py:398</span> in <span style=" color:#9400d3;">__getitem__</span></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">    return self._getitem(widget_id, key)</p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><span style=" color:#00ffff;">  File </span><span style=" color:#00ff00;">~\anaconda3\Lib\site-packages\streamlit\runtime\state\session_state.py:443</span><span style=" color:#00ffff;"> in </span><span style=" color:#ff00ff;">_getitem</span></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><span style=" color:#ffff00;">    raise KeyError</span></p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; color:#00ffff;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><span style=" color:#ff0000;">KeyError</span></p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">During handling of the above exception, another exception occurred:</p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">Traceback <span style=" color:#00ffff;">(most recent call last)</span>:</p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">  File <span style=" color:#006400;">~\anaconda3\Lib\site-packages\streamlit\runtime\state\session_state_proxy.py:119</span> in <span style=" color:#9400d3;">__getattr__</span></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">    return self[key]</p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">  File <span style=" color:#006400;">~\anaconda3\Lib\site-packages\streamlit\runtime\state\session_state_proxy.py:90</span> in <span style=" color:#9400d3;">__getitem__</span></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">    return get_session_state()[key]</p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">  File <span style=" color:#006400;">~\anaconda3\Lib\site-packages\streamlit\runtime\state\safe_session_state.py:91</span> in <span style=" color:#9400d3;">__getitem__</span></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">    return self._state[key]</p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><span style=" color:#00ffff;">  File </span><span style=" color:#00ff00;">~\anaconda3\Lib\site-packages\streamlit\runtime\state\session_state.py:400</span><span style=" color:#00ffff;"> in </span><span style=" color:#ff00ff;">__getitem__</span></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><span style=" color:#ffff00;">    raise KeyError(_missing_key_error_message(key))</span></p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; color:#00ffff;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><span style=" color:#ff0000;">KeyError:</span> 'st.session_state has no key &quot;hcell_data&quot;. Did you forget to initialize it? More info: https://docs.streamlit.io/library/advanced-features/session-state#initialization'</p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">During handling of the above exception, another exception occurred:</p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">Traceback <span style=" color:#00ffff;">(most recent call last)</span>:</p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">  File <span style=" color:#006400;">~\anaconda3\Lib\site-packages\spyder_kernels\py3compat.py:356</span> in <span style=" color:#9400d3;">compat_exec</span></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">    exec(code, globals, locals)</p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">  File <span style=" color:#006400;">c:\users\user\onedrive\桌面\untitled0.py:77</span></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;">    st.session_state.hcell_data,</p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><span style=" color:#00ffff;">  File </span><span style=" color:#00ff00;">~\anaconda3\Lib\site-packages\streamlit\runtime\state\session_state_proxy.py:121</span><span style=" color:#00ffff;"> in </span><span style=" color:#ff00ff;">__getattr__</span></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><span style=" color:#ffff00;">    raise AttributeError(_missing_attr_error_message(key))</span></p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; color:#00ffff;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><span style=" color:#ff0000;">AttributeError:</span> st.session_state has no attribute &quot;hcell_data&quot;. Did you forget to initialize it? More info: https://docs.streamlit.io/library/advanced-features/session-state#initialization</p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><span style=" color:#00ff00;">In [</span><span style=" font-weight:600; color:#00ff00;">2</span><span style=" color:#00ff00;">]:</span> </p></body></html>
+import streamlit as st
+import pandas as pd
+import numpy as np
+from io import BytesIO
+
+# --- 1. 頁面與全域設定 ---
+st.set_page_config(page_title="Faradaic Efficiency 計算機", layout="wide")
+st.title("⚡ Faradaic Efficiency 數據計算機")
+
+# 數學常數與預設公式
+F_const = 96485
+DEFAULT_HCELL_FORMULA = "(Conc * 50 * Dilution * 1e-6 * n_e * F) / Q * 100"
+DEFAULT_GDE_N_FORMULA = "(C1 * V_acid + C2 * V_re) * Dilution"
+DEFAULT_GDE_FE_FORMULA = "(Total_n * 1e-6 * n_e * F) / Q * 100"
+
+# --- 2. 側邊欄：模式與參數設定 ---
+st.sidebar.header("🧪 實驗參數設定")
+
+# 模式切換
+mode = st.sidebar.radio("實驗模式", ["H-cell (單槽)", "GDE (雙槽)"])
+
+# 通氣模式切換
+st.sidebar.markdown("---")
+is_n2_mode = st.sidebar.toggle("通入氮氣 (N2 Mode)", value=False, help="開啟後，NH3 的轉移電子數將設為 6，且產物鎖定為 NH3")
+
+st.sidebar.markdown("---")
+# 共用參數
+Q = st.sidebar.number_input("總電量 Q (C)", value=100.0, step=10.0)
+electrolyte = st.sidebar.text_input("電解液", value="0.5 M KNO3 + 0.1 M KOH")
+
+# 體積參數 (GDE 模式需要)
+if "GDE" in mode:
+    acid_vol = st.sidebar.number_input("Acid 側體積 (mL)", value=10.0, step=1.0)
+    re_vol = st.sidebar.number_input("RE 側體積 (mL)", value=50.0, step=5.0)
+else:
+    # 針對 H-cell 隱藏在 UI 裡，但如果你公式裡有用到可以設置
+    pass
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("📐 自訂計算公式")
+if "H-cell" in mode:
+    formula_hcell = st.sidebar.text_input("H-cell FE (%)", value=DEFAULT_HCELL_FORMULA)
+else:
+    formula_gde_n = st.sidebar.text_input("GDE Total n (μmol)", value=DEFAULT_GDE_N_FORMULA)
+    formula_gde_fe = st.sidebar.text_input("GDE FE (%)", value=DEFAULT_GDE_FE_FORMULA)
+
+# --- 3. 核心數據表格設定 ---
+# 初始化資料結構 (如果你希望預設帶入你常用的參數)
+if 'hcell_data' not in st.session_state:
+    st.session_state.hcell_data = pd.DataFrame({
+        "Product": ["NH3"],
+        "Catalyst": ["純鎳纖維紙"],
+        "Loading (μl)": [80.0],
+        "V vs RHE": [-0.3],
+        "稀釋倍率": [1.0],
+        "Conc. (μmol)": [0.0]
+    })
+
+if 'gde_data' not in st.session_state:
+    st.session_state.gde_data = pd.DataFrame({
+        "Product": ["NH3"],
+        "Catalyst": ["純鎳纖維紙"],
+        "Loading (μl)": [80.0],
+        "V vs RHE": [-0.3],
+        "稀釋倍率": [1.0],
+        "Acid C1 (mM)": [0.0],
+        "RE C2 (mM)": [0.0]
+    })
+
+st.subheader(f"📊 實驗數據輸入 ({mode})")
+st.info("💡 提示：你可以直接點擊下方表格進行編輯，點擊最右側的「+」或「垃圾桶」圖示來新增/刪除行。")
+
+# 根據模式顯示並編輯表格
+if "H-cell" in mode:
+    # 使用 st.data_editor 讓使用者能在網頁上直接像 Excel 一樣編輯
+    edited_df = st.data_editor(
+        st.session_state.hcell_data,
+        num_rows="dynamic",
+        use_container_width=True,
+        column_config={
+            "Product": st.column_config.SelectboxColumn(
+                "產物",
+                help="選擇反應產物",
+                options=["NH3"] if is_n2_mode else ["NH3", "NO2"],
+                required=True
+            )
+        }
+    )
+else:
+    edited_df = st.data_editor(
+        st.session_state.gde_data,
+        num_rows="dynamic",
+        use_container_width=True,
+        column_config={
+            "Product": st.column_config.SelectboxColumn(
+                "產物",
+                options=["NH3"] if is_n2_mode else ["NH3", "NO2"],
+                required=True
+            )
+        }
+    )
+
+# --- 4. 進行計算 ---
+if st.button("🔄 計算 FE", type="primary"):
+    result_df = edited_df.copy()
+    
+    # 準備存放計算結果的 List
+    fe_results = []
+    total_n_results = []
+
+    for index, row in result_df.iterrows():
+        try:
+            prod = row["Product"]
+            
+            # 判斷電子數 n_e
+            if is_n2_mode and prod == 'NH3':
+                n_e = 6
+            else:
+                n_e = 8 if prod == 'NH3' else (2 if prod == 'NO2' else np.nan)
+            
+            dilution = float(row["稀釋倍率"])
+            
+            if "H-cell" in mode:
+                conc = float(row["Conc. (μmol)"])
+                if not np.isnan(n_e):
+                    # 建立變數環境給 eval 使用
+                    env = {'Conc': conc, 'Dilution': dilution, 'Q': Q, 'n_e': n_e, 'F': F_const}
+                    fe_val = eval(formula_hcell, {"__builtins__": {}}, env)
+                    fe_results.append(round(fe_val, 2))
+                else:
+                    fe_results.append(None)
+            
+            else: # GDE 模式
+                c1, c2 = float(row["Acid C1 (mM)"]), float(row["RE C2 (mM)"])
+                env_n = {'C1': c1, 'C2': c2, 'V_acid': acid_vol, 'V_re': re_vol, 'Dilution': dilution}
+                total_n = eval(formula_gde_n, {"__builtins__": {}}, env_n)
+                total_n_results.append(round(total_n, 3))
+                
+                if not np.isnan(n_e):
+                    env_fe = {'Total_n': total_n, 'Q': Q, 'n_e': n_e, 'F': F_const}
+                    fe_val = eval(formula_gde_fe, {"__builtins__": {}}, env_fe)
+                    fe_results.append(round(fe_val, 2))
+                else:
+                    fe_results.append(None)
+                    
+        except Exception as e:
+            st.error(f"第 {index+1} 行計算錯誤: {e}")
+            fe_results.append("Error")
+            if "GDE" in mode: total_n_results.append("Error")
+
+    # 將結果合併回 DataFrame
+    if "GDE" in mode:
+        result_df["Total n (μmol)"] = total_n_results
+    result_df["FE (%)"] = fe_results
+    
+    # --- 5. 顯示結果與匯出 ---
+    st.success("✅ 計算完成！")
+    st.dataframe(result_df, use_container_width=True)
+    
+    # 匯出成 Excel
+    def to_excel(df):
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='FE_Data')
+        processed_data = output.getvalue()
+        return processed_data
+        
+    excel_data = to_excel(result_df)
+    
+    gas_str = "N2_Gas" if is_n2_mode else "Ar_Gas"
+    file_name = f"FE_Result_{mode}_{gas_str}.xlsx"
+    
+    st.download_button(
+        label="📥 下載 Excel 結果",
+        data=excel_data,
+        file_name=file_name,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
