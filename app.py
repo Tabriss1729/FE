@@ -30,23 +30,20 @@ if 'electrolyte' not in st.session_state: st.session_state.electrolyte = "0.5 M 
 if 'acid_vol' not in st.session_state: st.session_state.acid_vol = 10.0
 if 're_vol' not in st.session_state: st.session_state.re_vol = 50.0
 
+# 💡 基底資料 (Base Data)
 if 'hcell_data' not in st.session_state:
     st.session_state.hcell_data = pd.DataFrame({
-        "選取": pd.Series(dtype='bool'),
-        "Product": pd.Series(dtype='str'), "Catalyst": pd.Series(dtype='str'), "Loading (μl)": pd.Series(dtype='float'),
-        "V vs RHE": pd.Series(dtype='float'), "稀釋倍率": pd.Series(dtype='float'), "Conc. (μmol)": pd.Series(dtype='float')
+        "選取": pd.Series(dtype='bool'), "Product": pd.Series(dtype='str'), "Catalyst": pd.Series(dtype='str'), 
+        "Loading (μl)": pd.Series(dtype='float'), "V vs RHE": pd.Series(dtype='float'), "稀釋倍率": pd.Series(dtype='float'), "Conc. (μmol)": pd.Series(dtype='float')
     })
 if 'gde_data' not in st.session_state:
     st.session_state.gde_data = pd.DataFrame({
-        "選取": pd.Series(dtype='bool'),
-        "Product": pd.Series(dtype='str'), "Catalyst": pd.Series(dtype='str'), "Loading (μl)": pd.Series(dtype='float'),
-        "V vs RHE": pd.Series(dtype='float'), "稀釋倍率": pd.Series(dtype='float'), "Acid C1 (mM)": pd.Series(dtype='float'), "RE C2 (mM)": pd.Series(dtype='float')
+        "選取": pd.Series(dtype='bool'), "Product": pd.Series(dtype='str'), "Catalyst": pd.Series(dtype='str'), 
+        "Loading (μl)": pd.Series(dtype='float'), "V vs RHE": pd.Series(dtype='float'), "稀釋倍率": pd.Series(dtype='float'), "Acid C1 (mM)": pd.Series(dtype='float'), "RE C2 (mM)": pd.Series(dtype='float')
     })
 
-if '選取' not in st.session_state.hcell_data.columns:
-    st.session_state.hcell_data.insert(0, '選取', False)
-if '選取' not in st.session_state.gde_data.columns:
-    st.session_state.gde_data.insert(0, '選取', False)
+if '選取' not in st.session_state.hcell_data.columns: st.session_state.hcell_data.insert(0, '選取', False)
+if '選取' not in st.session_state.gde_data.columns: st.session_state.gde_data.insert(0, '選取', False)
 
 # --- 2. 側邊欄：設定管理與實驗參數 ---
 with st.sidebar:
@@ -69,7 +66,6 @@ with st.sidebar:
                     if rows:
                         df = pd.DataFrame(rows)
                         if '選取' not in df.columns: df['選取'] = False
-                        
                         mapping = {'product': 'Product', 'catalyst': 'Catalyst', 'volume_ul': 'Loading (μl)', 'v_rhe': 'V vs RHE', 'dilution': '稀釋倍率', 'conc': 'Conc. (μmol)', 'acid_c1': 'Acid C1 (mM)', 're_c2': 'RE C2 (mM)'}
                         df = df.rename(columns=mapping)
                         if gp.get('mode') == "H-cell": st.session_state.hcell_data = df[[c for c in st.session_state.hcell_data.columns if c in df.columns]]
@@ -111,6 +107,18 @@ with st.sidebar:
         st.session_state.acid_vol = st.number_input("Acid 側體積 (mL)", value=float(st.session_state.acid_vol))
         st.session_state.re_vol = st.number_input("RE 側體積 (mL)", value=float(st.session_state.re_vol))
 
+# 💡 核心修復：在處理按鈕之前，先捕捉表格內「來不及存檔」的手動編輯
+editor_key_str = f"data_editor_{mode}_{st.session_state.editor_key}"
+target_df = st.session_state.hcell_data.copy() if "H-cell" in mode else st.session_state.gde_data.copy()
+
+if editor_key_str in st.session_state:
+    edits = st.session_state[editor_key_str].get("edited_rows", {})
+    for row_idx_str, changes in edits.items():
+        r_idx = int(row_idx_str)
+        if r_idx in target_df.index:
+            for col, val in changes.items():
+                target_df.loc[r_idx, col] = val
+
 # --- 3. 表格操作 ---
 with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", expanded=False):
     st.markdown("##### ➕ 批量新增空行")
@@ -121,15 +129,13 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
         if st.button("確認新增"):
             new_rows = []
             for _ in range(add_count):
-                if "H-cell" in mode:
-                    new_rows.append({"選取": False, "Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "稀釋倍率": 1.0, "Conc. (μmol)": None})
-                else:
-                    new_rows.append({"選取": False, "Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "稀釋倍率": 1.0, "Acid C1 (mM)": None, "RE C2 (mM)": None})
+                if "H-cell" in mode: new_rows.append({"選取": False, "Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "稀釋倍率": 1.0, "Conc. (μmol)": None})
+                else: new_rows.append({"選取": False, "Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "稀釋倍率": 1.0, "Acid C1 (mM)": None, "RE C2 (mM)": None})
             
             new_df = pd.DataFrame(new_rows)
-            if "H-cell" in mode: st.session_state.hcell_data = pd.concat([st.session_state.hcell_data, new_df], ignore_index=True)
-            else: st.session_state.gde_data = pd.concat([st.session_state.gde_data, new_df], ignore_index=True)
-            
+            target_df = pd.concat([target_df, new_df], ignore_index=True)
+            if "H-cell" in mode: st.session_state.hcell_data = target_df
+            else: st.session_state.gde_data = target_df
             st.session_state.editor_key += 1 
             st.rerun()
 
@@ -149,10 +155,7 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
     with col_btn1:
         if st.button("🪄 套用修改至已選取行", use_container_width=True):
             try:
-                target_df = st.session_state.hcell_data.copy() if "H-cell" in mode else st.session_state.gde_data.copy()
-                if "選取" not in target_df.columns: target_df.insert(0, "選取", False)
                 mask = target_df["選取"] == True
-                
                 if not mask.any():
                     st.warning("⚠️ 請先在下方表格左側勾選 (☑) 您要修改的行！")
                 else:
@@ -165,7 +168,6 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
                     target_df["選取"] = False
                     if "H-cell" in mode: st.session_state.hcell_data = target_df
                     else: st.session_state.gde_data = target_df
-                    
                     st.session_state.editor_key += 1
                     st.rerun()
             except ValueError:
@@ -174,17 +176,13 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
     with col_btn2:
         if st.button("❌ 刪除已選取行", use_container_width=True):
             try:
-                target_df = st.session_state.hcell_data.copy() if "H-cell" in mode else st.session_state.gde_data.copy()
-                if "選取" not in target_df.columns: target_df.insert(0, "選取", False)
                 mask = target_df["選取"] == True
-                
                 if not mask.any():
                     st.warning("⚠️ 請先在下方表格左側勾選 (☑) 您要刪除的行！")
                 else:
                     target_df = target_df[~mask].reset_index(drop=True)
                     if "H-cell" in mode: st.session_state.hcell_data = target_df
                     else: st.session_state.gde_data = target_df
-                    
                     st.session_state.editor_key += 1
                     st.rerun()
             except Exception as e:
@@ -193,26 +191,28 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
 # --- 4. 數據表格 ---
 st.subheader(f"📊 數據輸入 - {mode}")
 
-# 💡 新增：全選 / 全不選 按鈕
 col_sel1, col_sel2, _ = st.columns([1, 1, 8])
 with col_sel1:
     if st.button("☑ 全選", use_container_width=True):
-        if "H-cell" in mode: st.session_state.hcell_data["選取"] = True
-        else: st.session_state.gde_data["選取"] = True
+        target_df["選取"] = True
+        if "H-cell" in mode: st.session_state.hcell_data = target_df
+        else: st.session_state.gde_data = target_df
         st.session_state.editor_key += 1
         st.rerun()
 with col_sel2:
     if st.button("☐ 全取消", use_container_width=True):
-        if "H-cell" in mode: st.session_state.hcell_data["選取"] = False
-        else: st.session_state.gde_data["選取"] = False
+        target_df["選取"] = False
+        if "H-cell" in mode: st.session_state.hcell_data = target_df
+        else: st.session_state.gde_data = target_df
         st.session_state.editor_key += 1
         st.rerun()
 
-current_df = st.session_state.hcell_data if "H-cell" in mode else st.session_state.gde_data
+# 💡 核心修復：只給表格吃「基底資料」，不強制蓋台
+base_render_df = st.session_state.hcell_data if "H-cell" in mode else st.session_state.gde_data
 
 edited_df = st.data_editor(
-    current_df,
-    key=f"data_editor_{mode}_{st.session_state.editor_key}",
+    base_render_df,
+    key=editor_key_str,
     num_rows="fixed",
     use_container_width=True,
     hide_index=True,
@@ -221,9 +221,7 @@ edited_df = st.data_editor(
         "Product": st.column_config.SelectboxColumn("產物", options=["NH3"] if is_n2_mode else ["NH3", "NO2"], required=True)
     }
 )
-
-if "H-cell" in mode: st.session_state.hcell_data = edited_df
-else: st.session_state.gde_data = edited_df
+# 這裡「絕對不要」再寫 st.session_state.hcell_data = edited_df 了！
 
 # --- 5. 計算與匯出設定 ---
 st.divider()
@@ -241,6 +239,7 @@ with col_name1:
     excel_filename_final = f"{today_str}_{custom_excel_name}.xlsx"
 
 if st.button("🔄 開始計算 FE", type="primary"):
+    # 計算時使用 edited_df，因為它包含了表格內部最新的打勾與數值
     res_df = edited_df.copy()
     fe_res, tn_res = [], []
     for _, row in res_df.iterrows():
@@ -353,4 +352,4 @@ if st.button("🔄 開始計算 FE", type="primary"):
         wb.save(out)
         return out.getvalue()
 
-    st.download_button("📥 下 Excel", data=to_pro_excel(res_df, mode, electrolyte, total_q, is_n2_mode), file_name=excel_filename_final)
+    st.download_button("📥 下載 Excel", data=to_pro_excel(res_df, mode, electrolyte, total_q, is_n2_mode), file_name=excel_filename_final)
