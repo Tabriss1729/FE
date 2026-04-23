@@ -45,10 +45,23 @@ if 'gde_data' not in st.session_state:
         "V vs RHE": pd.Series(dtype='float'), "Dilution Factor": pd.Series(dtype='float'), "Acid C1 (mM)": pd.Series(dtype='float'), "RE C2 (mM)": pd.Series(dtype='float')
     })
 
-if '選取' not in st.session_state.hcell_data.columns:
-    st.session_state.hcell_data.insert(0, '選取', False)
-if '選取' not in st.session_state.gde_data.columns:
-    st.session_state.gde_data.insert(0, '選取', False)
+if '選取' not in st.session_state.hcell_data.columns: st.session_state.hcell_data.insert(0, '選取', False)
+if '選取' not in st.session_state.gde_data.columns: st.session_state.gde_data.insert(0, '選取', False)
+
+# 💡 核心修復：瞬間存檔的回呼函數 (Callback)
+def commit_edits():
+    curr_mode = st.session_state.get('mode', "GDE (雙槽)")
+    key = f"data_editor_{curr_mode}_{st.session_state.editor_key}"
+    if key in st.session_state:
+        state = st.session_state[key]
+        df = st.session_state.hcell_data if "H-cell" in curr_mode else st.session_state.gde_data
+        
+        if "edited_rows" in state:
+            for row_idx_str, changes in state["edited_rows"].items():
+                r_idx = int(row_idx_str)
+                if r_idx in df.index:
+                    for col, val in changes.items():
+                        df.loc[r_idx, col] = val
 
 # --- 2. 側邊欄：設定管理與實驗參數 ---
 with st.sidebar:
@@ -133,7 +146,6 @@ with st.sidebar:
         st.session_state.acid_vol = st.number_input("Acid 側體積 (mL)", value=float(st.session_state.acid_vol))
         st.session_state.re_vol = st.number_input("RE 側體積 (mL)", value=float(st.session_state.re_vol))
 
-    # 💡 修改點：將變數說明改為可摺疊，並條列式附上動態數值
     st.markdown("---")
     with st.expander("⚙️ 公式設定 (Formula)", expanded=False):
         st.markdown(f"""
@@ -144,10 +156,12 @@ with st.sidebar:
             <li><code>F</code> (法拉第常數) = <b>{F_const}</b></li>
             <li><code>V_acid</code> (Acid 側體積) = <b>{st.session_state.acid_vol}</b></li>
             <li><code>V_re</code> (RE 側體積) = <b>{st.session_state.re_vol}</b></li>
-            <li><code>n_e</code> (轉移電子數) = <b>由表格產物決定</b></li>
+            <li><code>n_e</code> (電子數) = <b>依 Product 決定</b></li>
             <li><code>Dilution</code> (稀釋倍率) = <b>讀取表格各行</b></li>
-            <li><code>Conc</code> / <code>C1</code> / <code>C2</code> = <b>讀取表格各行</b></li>
-            <li><code>Total_n</code> = <b>由 GDE 計算產生</b></li>
+            <li><code>Conc</code> (莫耳濃度) = <b>讀取表格各行</b></li>
+            <li><code>C1</code> (Acid 濃度) = <b>讀取表格各行</b></li>
+            <li><code>C2</code> (RE 濃度) = <b>讀取表格各行</b></li>
+            <li><code>Total_n</code> (總莫耳數) = <b>由 GDE 公式計算</b></li>
         </ul>
         </details>
         """, unsafe_allow_html=True)
@@ -166,20 +180,10 @@ with st.sidebar:
             st.session_state.gde_fe_formula = "(Total_n * 1e-6 * n_e * F) / Q * 100"
             st.rerun()
 
-
-# 處理按鈕之前，先捕捉表格內「來不及存檔」的手動編輯
+# --- 3. 表格操作 ---
 editor_key_str = f"data_editor_{mode}_{st.session_state.editor_key}"
 target_df = st.session_state.hcell_data.copy() if "H-cell" in mode else st.session_state.gde_data.copy()
 
-if editor_key_str in st.session_state:
-    edits = st.session_state[editor_key_str].get("edited_rows", {})
-    for row_idx_str, changes in edits.items():
-        r_idx = int(row_idx_str)
-        if r_idx in target_df.index:
-            for col, val in changes.items():
-                target_df.loc[r_idx, col] = val
-
-# --- 3. 表格操作 ---
 with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", expanded=False):
     st.markdown("##### ➕ 批量新增空行")
     col_add1, col_add2, _ = st.columns([1, 1, 3])
@@ -189,10 +193,11 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
         if st.button("確認新增"):
             new_rows = []
             for _ in range(add_count):
+                # 💡 修改點 1：新增空行時，將 Conc., C1, C2 預設為 0.0，取代 None
                 if "H-cell" in mode:
-                    new_rows.append({"選取": False, "Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "Dilution Factor": 1.0, "Conc. (μmol)": None})
+                    new_rows.append({"選取": False, "Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "Dilution Factor": 1.0, "Conc. (μmol)": 0.0})
                 else:
-                    new_rows.append({"選取": False, "Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "Dilution Factor": 1.0, "Acid C1 (mM)": None, "RE C2 (mM)": None})
+                    new_rows.append({"選取": False, "Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "Dilution Factor": 1.0, "Acid C1 (mM)": 0.0, "RE C2 (mM)": 0.0})
             
             new_df = pd.DataFrame(new_rows)
             target_df = pd.concat([target_df, new_df], ignore_index=True)
@@ -277,6 +282,7 @@ edited_df = st.data_editor(
     num_rows="fixed",
     use_container_width=True,
     hide_index=True,
+    on_change=commit_edits,
     column_config={
         "選取": st.column_config.CheckboxColumn("☑ 選取", default=False, width="small"),
         "Product": st.column_config.SelectboxColumn("Product", options=["NH3"] if is_n2_mode else ["NH3", "NO2"], required=True)
@@ -289,12 +295,22 @@ st.subheader("📥 計算與匯出")
 
 if st.button("🔄 開始計算 FE", type="primary"):
     res_df = edited_df.copy()
+    
+    # 💡 修改點 2：計算前將可能被清空為空白 (NaN) 的濃度欄位強制補上 0.0，避免報錯
+    if "H-cell" in mode:
+        res_df["Conc. (μmol)"] = res_df["Conc. (μmol)"].fillna(0.0)
+    else:
+        res_df["Acid C1 (mM)"] = res_df["Acid C1 (mM)"].fillna(0.0)
+        res_df["RE C2 (mM)"] = res_df["RE C2 (mM)"].fillna(0.0)
+
     fe_res, tn_res = [], []
     for _, row in res_df.iterrows():
         try:
             prod = row["Product"]
             n_e = 6 if (is_n2_mode and prod == 'NH3') else (8 if prod == 'NH3' else (2 if prod == 'NO2' else np.nan))
-            dil = float(row["Dilution Factor"])
+            # 確保稀釋倍率就算空白也預設為 1 (才不會除以 0 爆炸)
+            dil = float(row["Dilution Factor"]) if pd.notna(row["Dilution Factor"]) else 1.0 
+            
             if "H-cell" in mode:
                 env = {'Conc': float(row["Conc. (μmol)"]), 'Dilution': dil, 'Q': total_q, 'n_e': n_e, 'F': F_const}
                 fe_res.append(round(eval(st.session_state.hcell_formula, {"__builtins__": {}}, env), 2))
@@ -304,7 +320,7 @@ if st.button("🔄 開始計算 FE", type="primary"):
                 tn_res.append(round(tn, 3))
                 env_fe = {'Total_n': tn, 'Q': total_q, 'n_e': n_e, 'F': F_const}
                 fe_res.append(round(eval(st.session_state.gde_fe_formula, {"__builtins__": {}}, env_fe), 2))
-        except:
+        except Exception as e:
             fe_res.append("Error")
             if "GDE" in mode: tn_res.append("Error")
     
