@@ -20,7 +20,7 @@ if 'editor_key' not in st.session_state: st.session_state.editor_key = 0
 if 'loaded_file_id' not in st.session_state: st.session_state.loaded_file_id = ""
 
 if 'mode' not in st.session_state: st.session_state.mode = "GDE (雙槽)"
-if 'radio_mode' not in st.session_state: st.session_state.radio_mode = st.session_state.mode # 💡 新增：用來做切換攔截的變數
+if 'radio_mode' not in st.session_state: st.session_state.radio_mode = st.session_state.mode
 if 'q_toggle' not in st.session_state: st.session_state.q_toggle = False
 if 'custom_ne_toggle' not in st.session_state: st.session_state.custom_ne_toggle = False
 if 'sidebar_ne' not in st.session_state: st.session_state.sidebar_ne = 8.0 
@@ -33,7 +33,6 @@ if 'hcell_formula' not in st.session_state: st.session_state.hcell_formula = "(C
 if 'gde_n_formula' not in st.session_state: st.session_state.gde_n_formula = "(C1 * V_acid + C2 * V_re) * Dilution"
 if 'gde_fe_formula' not in st.session_state: st.session_state.gde_fe_formula = "(Total_n * 1e-6 * n_e * F) / Q * 100"
 
-# 💡 獨立出「重置數據」的函數，方便切換模式時呼叫
 def reset_all_data():
     st.session_state.hcell_data = pd.DataFrame({
         "選取": pd.Series(dtype='bool'), "Product": pd.Series(dtype='str'), "n_e": pd.Series(dtype='float'), 
@@ -49,17 +48,14 @@ def reset_all_data():
         del st.session_state.res_df
     st.session_state.editor_key += 1
 
-# 初次執行時如果沒有資料庫就建立
 if 'hcell_data' not in st.session_state: reset_all_data()
 
-# 相容性防呆
 for df_name in ['hcell_data', 'gde_data']:
     if '選取' not in st.session_state[df_name].columns: 
         st.session_state[df_name].insert(0, '選取', False)
     if 'n_e' not in st.session_state[df_name].columns:
         st.session_state[df_name].insert(2, 'n_e', np.nan)
 
-# JSON 讀取中繼處理
 if 'pending_json_data' in st.session_state:
     data = st.session_state.pending_json_data
     gp = data.get('global_params', {})
@@ -67,7 +63,7 @@ if 'pending_json_data' in st.session_state:
     if 'mode' in gp: 
         new_mode = "H-cell (單槽)" if gp['mode'] == "H-cell" else "GDE (雙槽)"
         st.session_state.mode = new_mode
-        st.session_state.radio_mode = new_mode # 💡 同步更新按鈕狀態
+        st.session_state.radio_mode = new_mode 
         
     st.session_state.q_toggle = gp.get('gde_q_toggle', False)
     st.session_state.custom_ne_toggle = gp.get('custom_ne_toggle', False)
@@ -114,24 +110,46 @@ def commit_edits():
 with st.sidebar:
     st.header("🧪 實驗參數")
     
-    # 💡 核心更新：雙重確認切換機制
     st.radio("實驗模式", ["H-cell (單槽)", "GDE (雙槽)"], key="radio_mode")
     
-    # 如果使用者點選了不同模式，攔截並顯示警告框
+    # 💡 智慧資料偵測：判斷是否需要跳出警告
     if st.session_state.radio_mode != st.session_state.mode:
-        st.warning(f"⚠️ **確認切換至 {st.session_state.radio_mode}？**\n\n這將會 **清空** 目前表格內所有數據與計算結果！")
-        col_c1, col_c2 = st.columns(2)
-        with col_c1:
-            if st.button("✔️ 確定清除並切換", type="primary", use_container_width=True):
-                st.session_state.mode = st.session_state.radio_mode
-                reset_all_data() # 呼叫上方的清除函數
-                st.rerun()
-        with col_c2:
-            if st.button("❌ 取消", use_container_width=True):
-                st.session_state.radio_mode = st.session_state.mode # 恢復按鈕狀態
-                st.rerun()
+        curr_df = st.session_state.hcell_data if "H-cell" in st.session_state.mode else st.session_state.gde_data
+        has_data = False
         
-        st.stop() # 💡 凍結下方程式碼執行，直到使用者按下確認或取消
+        # 如果大於0行，詳細檢查裡面有沒有填數字或文字
+        if len(curr_df) > 0:
+            c_vrhe = curr_df['V vs RHE'].notna().any()
+            c_load = curr_df['Loading (μl)'].notna().any()
+            c_cat = (curr_df['Catalyst'].fillna("").str.strip() != "").any()
+            
+            if "H-cell" in st.session_state.mode:
+                c_conc = (pd.to_numeric(curr_df['Conc. (μmol)'], errors='coerce').fillna(0.0) > 0).any()
+                has_data = c_vrhe or c_load or c_cat or c_conc
+            else:
+                c1 = (pd.to_numeric(curr_df['Acid C1 (mM)'], errors='coerce').fillna(0.0) > 0).any()
+                c2 = (pd.to_numeric(curr_df['RE C2 (mM)'], errors='coerce').fillna(0.0) > 0).any()
+                has_data = c_vrhe or c_load or c_cat or c1 or c2
+                
+        if not has_data:
+            # 沒資料，直接切換！
+            st.session_state.mode = st.session_state.radio_mode
+            reset_all_data() 
+            st.rerun()
+        else:
+            # 有資料，跳出保護警告
+            st.warning(f"⚠️ **確認切換至 {st.session_state.radio_mode}？**\n\n這將會 **清空** 目前表格內所有數據與計算結果！")
+            col_c1, col_c2 = st.columns(2)
+            with col_c1:
+                if st.button("✔️ 確定清除並切換", type="primary", use_container_width=True):
+                    st.session_state.mode = st.session_state.radio_mode
+                    reset_all_data()
+                    st.rerun()
+            with col_c2:
+                if st.button("❌ 取消", use_container_width=True):
+                    st.session_state.radio_mode = st.session_state.mode 
+                    st.rerun()
+            st.stop() # 凍結下方畫面執行
     
     mode = st.session_state.mode
     
