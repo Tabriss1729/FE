@@ -13,10 +13,6 @@ st.set_page_config(page_title="Faradaic Efficiency 計算機", layout="wide")
 st.title("⚡ Faradaic Efficiency 數據計算機")
 
 F_const = 96485
-# 固定計算公式
-HCELL_FORMULA = "(Conc * 50 * Dilution * 1e-6 * n_e * F) / Q * 100"
-GDE_N_FORMULA = "(C1 * V_acid + C2 * V_re) * Dilution"
-GDE_FE_FORMULA = "(Total_n * 1e-6 * n_e * F) / Q * 100"
 
 # 獲取當天日期 (格式如: 20240520)
 today_str = datetime.date.today().strftime("%Y%m%d")
@@ -31,6 +27,11 @@ if 'total_q' not in st.session_state: st.session_state.total_q = 100.0
 if 'electrolyte' not in st.session_state: st.session_state.electrolyte = "0.5 M KNO3 + 0.1 M KOH" 
 if 'acid_vol' not in st.session_state: st.session_state.acid_vol = 10.0
 if 're_vol' not in st.session_state: st.session_state.re_vol = 50.0
+
+# 💡 初始化自訂公式 (預設值)
+if 'hcell_formula' not in st.session_state: st.session_state.hcell_formula = "(Conc * 50 * Dilution * 1e-6 * n_e * F) / Q * 100"
+if 'gde_n_formula' not in st.session_state: st.session_state.gde_n_formula = "(C1 * V_acid + C2 * V_re) * Dilution"
+if 'gde_fe_formula' not in st.session_state: st.session_state.gde_fe_formula = "(Total_n * 1e-6 * n_e * F) / Q * 100"
 
 if 'hcell_data' not in st.session_state:
     st.session_state.hcell_data = pd.DataFrame({
@@ -53,8 +54,8 @@ if '選取' not in st.session_state.gde_data.columns:
 # --- 2. 側邊欄：設定管理與實驗參數 ---
 with st.sidebar:
     st.header("💾 設定與檔案管理")
-    with st.expander("JSON 設定檔操作", expanded=True):
-        uploaded_json = st.file_uploader("📂 讀取設定 (.json)", type="json")
+    with st.expander("📂 JSON 設定檔操作", expanded=True):
+        uploaded_json = st.file_uploader("讀取設定 (.json)", type="json")
         if uploaded_json is not None:
             if st.session_state.loaded_file_id != uploaded_json.file_id:
                 try:
@@ -69,6 +70,11 @@ with st.sidebar:
                     st.session_state.acid_vol = gp.get('acid_vol', 10.0)
                     st.session_state.re_vol = gp.get('re_vol', 50.0)
                     
+                    # 💡 讀取 JSON 中的自訂公式 (若無則維持現有)
+                    st.session_state.hcell_formula = gp.get('hcell_formula', st.session_state.hcell_formula)
+                    st.session_state.gde_n_formula = gp.get('gde_n_formula', st.session_state.gde_n_formula)
+                    st.session_state.gde_fe_formula = gp.get('gde_fe_formula', st.session_state.gde_fe_formula)
+                    
                     rows = data.get('rows', [])
                     if rows:
                         df = pd.DataFrame(rows)
@@ -82,7 +88,6 @@ with st.sidebar:
                     st.session_state.loaded_file_id = uploaded_json.file_id
                     st.session_state.editor_key += 1
                     
-                    # 💡 讀取新檔案時，清除舊的計算結果
                     if 'res_df' in st.session_state: del st.session_state.res_df 
                     st.rerun()
                 except Exception as e:
@@ -94,7 +99,18 @@ with st.sidebar:
         json_filename_final = f"{today_str}_{custom_json_name}.json"
 
         save_data = {
-            'global_params': {'mode': "H-cell" if "H-cell" in st.session_state.mode else "GDE", 'total_coulomb': st.session_state.total_q, 'electrolyte': st.session_state.electrolyte, 'acid_vol': st.session_state.acid_vol, 're_vol': st.session_state.re_vol, 'gde_q_toggle': st.session_state.q_toggle},
+            'global_params': {
+                'mode': "H-cell" if "H-cell" in st.session_state.mode else "GDE", 
+                'total_coulomb': st.session_state.total_q, 
+                'electrolyte': st.session_state.electrolyte, 
+                'acid_vol': st.session_state.acid_vol, 
+                're_vol': st.session_state.re_vol, 
+                'gde_q_toggle': st.session_state.q_toggle,
+                # 💡 將自訂公式存入 JSON 中
+                'hcell_formula': st.session_state.hcell_formula,
+                'gde_n_formula': st.session_state.gde_n_formula,
+                'gde_fe_formula': st.session_state.gde_fe_formula
+            },
             'rows': st.session_state.hcell_data.to_dict('records') if "H-cell" in st.session_state.mode else st.session_state.gde_data.to_dict('records')
         }
         st.download_button("💾 儲存為 JSON", data=json.dumps(save_data, ensure_ascii=False, indent=4), file_name=json_filename_final)
@@ -119,6 +135,28 @@ with st.sidebar:
     if "GDE" in mode:
         st.session_state.acid_vol = st.number_input("Acid 側體積 (mL)", value=float(st.session_state.acid_vol))
         st.session_state.re_vol = st.number_input("RE 側體積 (mL)", value=float(st.session_state.re_vol))
+
+    # 💡 新增：公式自訂面板
+    st.markdown("---")
+    with st.expander("⚙️ 公式設定 (Formula)", expanded=False):
+        st.markdown("**變數說明：**\n* `Q`: 總電量, `F`: 法拉第常數(96485)\n* `n_e`: 轉移電子數, `Dilution`: 稀釋倍率")
+        
+        st.markdown("##### H-cell 公式")
+        st.markdown("*額外變數: `Conc` (莫耳濃度)*")
+        st.session_state.hcell_formula = st.text_area("FE (%) =", value=st.session_state.hcell_formula, height=68, label_visibility="collapsed")
+        
+        st.divider()
+        st.markdown("##### GDE 雙槽公式")
+        st.markdown("*額外變數: `C1`, `C2`, `V_acid`, `V_re`, `Total_n`*")
+        st.session_state.gde_n_formula = st.text_input("Total n (μmol) =", value=st.session_state.gde_n_formula)
+        st.session_state.gde_fe_formula = st.text_input("FE (%) =", value=st.session_state.gde_fe_formula)
+        
+        if st.button("🔄 恢復預設公式", use_container_width=True):
+            st.session_state.hcell_formula = "(Conc * 50 * Dilution * 1e-6 * n_e * F) / Q * 100"
+            st.session_state.gde_n_formula = "(C1 * V_acid + C2 * V_re) * Dilution"
+            st.session_state.gde_fe_formula = "(Total_n * 1e-6 * n_e * F) / Q * 100"
+            st.rerun()
+
 
 # 處理按鈕之前，先捕捉表格內「來不及存檔」的手動編輯
 editor_key_str = f"data_editor_{mode}_{st.session_state.editor_key}"
@@ -160,11 +198,11 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1: 
         prod_options = ["(不修改)", "NH3"] if is_n2_mode else ["(不修改)", "NH3", "NO2"]
-        b_prod = st.selectbox("Product", options=prod_options)
-    with col2: b_cat = st.text_input("Catalyst")
-    with col3: b_load = st.text_input("Loading (μl)")
-    with col4: b_vrhe = st.text_input("V vs RHE")
-    with col5: b_dil = st.text_input("Dilution Factor")
+        b_prod = st.selectbox("更新 Product", options=prod_options)
+    with col2: b_cat = st.text_input("更新 Catalyst")
+    with col3: b_load = st.text_input("更新 Loading (μl)")
+    with col4: b_vrhe = st.text_input("更新 V vs RHE")
+    with col5: b_dil = st.text_input("更新 Dilution Factor")
     
     col_btn1, col_btn2, _ = st.columns([2, 2, 4])
     with col_btn1:
@@ -240,7 +278,6 @@ edited_df = st.data_editor(
 st.divider()
 st.subheader("📥 計算與匯出")
 
-# 💡 點擊計算時，把結果存入 session_state
 if st.button("🔄 開始計算 FE", type="primary"):
     res_df = edited_df.copy()
     fe_res, tn_res = [], []
@@ -251,13 +288,15 @@ if st.button("🔄 開始計算 FE", type="primary"):
             dil = float(row["Dilution Factor"])
             if "H-cell" in mode:
                 env = {'Conc': float(row["Conc. (μmol)"]), 'Dilution': dil, 'Q': total_q, 'n_e': n_e, 'F': F_const}
-                fe_res.append(round(eval(HCELL_FORMULA, {"__builtins__": {}}, env), 2))
+                # 💡 使用動態儲存的 H-cell 公式
+                fe_res.append(round(eval(st.session_state.hcell_formula, {"__builtins__": {}}, env), 2))
             else:
                 env_n = {'C1': float(row["Acid C1 (mM)"]), 'C2': float(row["RE C2 (mM)"]), 'V_acid': st.session_state.acid_vol, 'V_re': st.session_state.re_vol, 'Dilution': dil}
-                tn = eval(GDE_N_FORMULA, {"__builtins__": {}}, env_n)
+                # 💡 使用動態儲存的 GDE 公式
+                tn = eval(st.session_state.gde_n_formula, {"__builtins__": {}}, env_n)
                 tn_res.append(round(tn, 3))
                 env_fe = {'Total_n': tn, 'Q': total_q, 'n_e': n_e, 'F': F_const}
-                fe_res.append(round(eval(GDE_FE_FORMULA, {"__builtins__": {}}, env_fe), 2))
+                fe_res.append(round(eval(st.session_state.gde_fe_formula, {"__builtins__": {}}, env_fe), 2))
         except:
             fe_res.append("Error")
             if "GDE" in mode: tn_res.append("Error")
@@ -265,10 +304,8 @@ if st.button("🔄 開始計算 FE", type="primary"):
     if "GDE" in mode: res_df["Total n (μmol)"] = tn_res
     res_df["FE (%)"] = fe_res
     
-    # 存入記憶體
     st.session_state.res_df = res_df
 
-# 💡 如果記憶體裡有計算結果，就顯示出來，並把輸入框與按鈕並排！
 if 'res_df' in st.session_state:
     st.success("✅ 計算完成！")
     st.dataframe(st.session_state.res_df.drop(columns=["選取"], errors='ignore'), use_container_width=True)
@@ -368,10 +405,8 @@ if 'res_df' in st.session_state:
 
     st.markdown("##### 📁 匯出報表 (可自訂檔名)")
     
-    # 💡 核心排版：將輸入框與下載按鈕排在同一行
     col_input, col_dl, _ = st.columns([2, 2, 4])
     with col_input:
-        # 隱藏 Label 讓它能跟右邊的按鈕完美對齊
         custom_excel_name = st.text_input("自訂 Excel 檔名", value=default_excel_name, label_visibility="collapsed")
         excel_filename_final = f"{today_str}_{custom_excel_name}.xlsx"
     with col_dl:
