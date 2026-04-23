@@ -20,6 +20,7 @@ if 'editor_key' not in st.session_state: st.session_state.editor_key = 0
 if 'loaded_file_id' not in st.session_state: st.session_state.loaded_file_id = ""
 
 if 'mode' not in st.session_state: st.session_state.mode = "GDE (雙槽)"
+if 'radio_mode' not in st.session_state: st.session_state.radio_mode = st.session_state.mode # 💡 新增：用來做切換攔截的變數
 if 'q_toggle' not in st.session_state: st.session_state.q_toggle = False
 if 'custom_ne_toggle' not in st.session_state: st.session_state.custom_ne_toggle = False
 if 'sidebar_ne' not in st.session_state: st.session_state.sidebar_ne = 8.0 
@@ -32,18 +33,24 @@ if 'hcell_formula' not in st.session_state: st.session_state.hcell_formula = "(C
 if 'gde_n_formula' not in st.session_state: st.session_state.gde_n_formula = "(C1 * V_acid + C2 * V_re) * Dilution"
 if 'gde_fe_formula' not in st.session_state: st.session_state.gde_fe_formula = "(Total_n * 1e-6 * n_e * F) / Q * 100"
 
-if 'hcell_data' not in st.session_state:
+# 💡 獨立出「重置數據」的函數，方便切換模式時呼叫
+def reset_all_data():
     st.session_state.hcell_data = pd.DataFrame({
-        "選取": pd.Series(dtype='bool'),
-        "Product": pd.Series(dtype='str'), "n_e": pd.Series(dtype='float'), "Catalyst": pd.Series(dtype='str'), "Loading (μl)": pd.Series(dtype='float'),
-        "V vs RHE": pd.Series(dtype='float'), "Dilution Factor": pd.Series(dtype='float'), "Conc. (μmol)": pd.Series(dtype='float')
+        "選取": pd.Series(dtype='bool'), "Product": pd.Series(dtype='str'), "n_e": pd.Series(dtype='float'), 
+        "Catalyst": pd.Series(dtype='str'), "Loading (μl)": pd.Series(dtype='float'), "V vs RHE": pd.Series(dtype='float'), 
+        "Dilution Factor": pd.Series(dtype='float'), "Conc. (μmol)": pd.Series(dtype='float')
     })
-if 'gde_data' not in st.session_state:
     st.session_state.gde_data = pd.DataFrame({
-        "選取": pd.Series(dtype='bool'),
-        "Product": pd.Series(dtype='str'), "n_e": pd.Series(dtype='float'), "Catalyst": pd.Series(dtype='str'), "Loading (μl)": pd.Series(dtype='float'),
-        "V vs RHE": pd.Series(dtype='float'), "Dilution Factor": pd.Series(dtype='float'), "Acid C1 (mM)": pd.Series(dtype='float'), "RE C2 (mM)": pd.Series(dtype='float')
+        "選取": pd.Series(dtype='bool'), "Product": pd.Series(dtype='str'), "n_e": pd.Series(dtype='float'), 
+        "Catalyst": pd.Series(dtype='str'), "Loading (μl)": pd.Series(dtype='float'), "V vs RHE": pd.Series(dtype='float'), 
+        "Dilution Factor": pd.Series(dtype='float'), "Acid C1 (mM)": pd.Series(dtype='float'), "RE C2 (mM)": pd.Series(dtype='float')
     })
+    if 'res_df' in st.session_state:
+        del st.session_state.res_df
+    st.session_state.editor_key += 1
+
+# 初次執行時如果沒有資料庫就建立
+if 'hcell_data' not in st.session_state: reset_all_data()
 
 # 相容性防呆
 for df_name in ['hcell_data', 'gde_data']:
@@ -57,7 +64,11 @@ if 'pending_json_data' in st.session_state:
     data = st.session_state.pending_json_data
     gp = data.get('global_params', {})
     
-    if 'mode' in gp: st.session_state.mode = "H-cell (單槽)" if gp['mode'] == "H-cell" else "GDE (雙槽)"
+    if 'mode' in gp: 
+        new_mode = "H-cell (單槽)" if gp['mode'] == "H-cell" else "GDE (雙槽)"
+        st.session_state.mode = new_mode
+        st.session_state.radio_mode = new_mode # 💡 同步更新按鈕狀態
+        
     st.session_state.q_toggle = gp.get('gde_q_toggle', False)
     st.session_state.custom_ne_toggle = gp.get('custom_ne_toggle', False)
     st.session_state.sidebar_ne = gp.get('sidebar_ne', 8.0)
@@ -102,7 +113,26 @@ def commit_edits():
 # --- 2. 側邊欄 ---
 with st.sidebar:
     st.header("🧪 實驗參數")
-    st.radio("實驗模式", ["H-cell (單槽)", "GDE (雙槽)"], key="mode")
+    
+    # 💡 核心更新：雙重確認切換機制
+    st.radio("實驗模式", ["H-cell (單槽)", "GDE (雙槽)"], key="radio_mode")
+    
+    # 如果使用者點選了不同模式，攔截並顯示警告框
+    if st.session_state.radio_mode != st.session_state.mode:
+        st.warning(f"⚠️ **確認切換至 {st.session_state.radio_mode}？**\n\n這將會 **清空** 目前表格內所有數據與計算結果！")
+        col_c1, col_c2 = st.columns(2)
+        with col_c1:
+            if st.button("✔️ 確定清除並切換", type="primary", use_container_width=True):
+                st.session_state.mode = st.session_state.radio_mode
+                reset_all_data() # 呼叫上方的清除函數
+                st.rerun()
+        with col_c2:
+            if st.button("❌ 取消", use_container_width=True):
+                st.session_state.radio_mode = st.session_state.mode # 恢復按鈕狀態
+                st.rerun()
+        
+        st.stop() # 💡 凍結下方程式碼執行，直到使用者按下確認或取消
+    
     mode = st.session_state.mode
     
     if "GDE" in mode:
@@ -115,7 +145,7 @@ with st.sidebar:
     with col_q:
         st.number_input("總電量 Q (C)", step=10.0, key="total_q")
     with col_ne:
-        st.number_input("自訂電子轉移數", step=0.1, key="sidebar_ne", disabled=not st.session_state.custom_ne_toggle)
+        st.number_input("自訂 n_e", step=0.1, key="sidebar_ne", disabled=not st.session_state.custom_ne_toggle)
         
     total_q = st.session_state.total_q
 
@@ -247,11 +277,11 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
     cols = st.columns(5)
     with cols[0]:
         prod_options = ["(不修改)", "NH3"] if is_n2_mode else ["(不修改)", "NH3", "NO2"]
-        b_prod = st.selectbox("Product", options=prod_options, key="b_prod")
-    with cols[1]: b_cat = st.text_input("Catalyst", key="b_cat")
-    with cols[2]: b_load = st.text_input("Loading (μl)", key="b_load")
-    with cols[3]: b_vrhe = st.text_input("V vs RHE", key="b_vrhe")
-    with cols[4]: b_dil = st.text_input("Dilution Factor", key="b_dil")
+        b_prod = st.selectbox("更新 Product", options=prod_options, key="b_prod")
+    with cols[1]: b_cat = st.text_input("更新 Catalyst", key="b_cat")
+    with cols[2]: b_load = st.text_input("更新 Loading (μl)", key="b_load")
+    with cols[3]: b_vrhe = st.text_input("更新 V vs RHE", key="b_vrhe")
+    with cols[4]: b_dil = st.text_input("更新 Dilution Factor", key="b_dil")
     
     col_btn1, col_btn2, _ = st.columns([2, 2, 4])
     with col_btn1:
