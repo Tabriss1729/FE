@@ -21,6 +21,7 @@ if 'loaded_file_id' not in st.session_state: st.session_state.loaded_file_id = "
 
 if 'mode' not in st.session_state: st.session_state.mode = "GDE (雙槽)"
 if 'q_toggle' not in st.session_state: st.session_state.q_toggle = False
+if 'custom_ne_toggle' not in st.session_state: st.session_state.custom_ne_toggle = False # 💡 新增：自訂 ne 的開關狀態
 if 'total_q' not in st.session_state: st.session_state.total_q = 100.0
 if 'electrolyte' not in st.session_state: st.session_state.electrolyte = "0.5 M KNO3 + 0.1 M KOH" 
 if 'acid_vol' not in st.session_state: st.session_state.acid_vol = 10.0
@@ -33,18 +34,25 @@ if 'gde_fe_formula' not in st.session_state: st.session_state.gde_fe_formula = "
 if 'hcell_data' not in st.session_state:
     st.session_state.hcell_data = pd.DataFrame({
         "選取": pd.Series(dtype='bool'),
-        "Product": pd.Series(dtype='str'), "Catalyst": pd.Series(dtype='str'), "Loading (μl)": pd.Series(dtype='float'),
+        "Product": pd.Series(dtype='str'), "n_e": pd.Series(dtype='float'), "Catalyst": pd.Series(dtype='str'), "Loading (μl)": pd.Series(dtype='float'),
         "V vs RHE": pd.Series(dtype='float'), "Dilution Factor": pd.Series(dtype='float'), "Conc. (μmol)": pd.Series(dtype='float')
     })
 if 'gde_data' not in st.session_state:
     st.session_state.gde_data = pd.DataFrame({
         "選取": pd.Series(dtype='bool'),
-        "Product": pd.Series(dtype='str'), "Catalyst": pd.Series(dtype='str'), "Loading (μl)": pd.Series(dtype='float'),
+        "Product": pd.Series(dtype='str'), "n_e": pd.Series(dtype='float'), "Catalyst": pd.Series(dtype='str'), "Loading (μl)": pd.Series(dtype='float'),
         "V vs RHE": pd.Series(dtype='float'), "Dilution Factor": pd.Series(dtype='float'), "Acid C1 (mM)": pd.Series(dtype='float'), "RE C2 (mM)": pd.Series(dtype='float')
     })
 
-if '選取' not in st.session_state.hcell_data.columns: st.session_state.hcell_data.insert(0, '選取', False)
-if '選取' not in st.session_state.gde_data.columns: st.session_state.gde_data.insert(0, '選取', False)
+# 相容性防呆：如果舊的 cache 沒有選取或 n_e 欄位，自動補上
+for df_name in ['hcell_data', 'gde_data']:
+    if '選取' not in st.session_state[df_name].columns: 
+        st.session_state[df_name].insert(0, '選取', False)
+    if 'n_e' not in st.session_state[df_name].columns:
+        st.session_state[df_name].insert(2, 'n_e', np.nan)
+        st.session_state[df_name]['n_e'] = st.session_state[df_name]['Product'].apply(
+            lambda p: 6.0 if (st.session_state.q_toggle and p == 'NH3') else (8.0 if p == 'NH3' else 2.0)
+        )
 
 # 表格編輯瞬間存檔回呼函數
 def commit_edits():
@@ -65,7 +73,6 @@ def commit_edits():
 with st.sidebar:
     st.header("🧪 實驗參數")
     
-    # 💡 核心修復：全部改用 key 綁定，徹底解決左側打字回朔問題
     st.radio("實驗模式", ["H-cell (單槽)", "GDE (雙槽)"], key="mode")
     mode = st.session_state.mode
     
@@ -73,6 +80,9 @@ with st.sidebar:
         st.toggle("通入氮氣 (N2 Mode)", key="q_toggle")
     
     is_n2_mode = st.session_state.q_toggle if "GDE" in mode else False 
+
+    # 💡 新增：自訂電子轉移數的開關
+    st.toggle("自訂電子轉移數 (n_e)", key="custom_ne_toggle")
 
     st.number_input("總電量 Q (C)", step=10.0, key="total_q")
     st.text_input("Electrolyte", key="electrolyte")
@@ -94,7 +104,7 @@ with st.sidebar:
             <li><code>F</code> (法拉第常數) = <b>{F_const}</b></li>
             <li><code>V_acid</code> (Acid 側體積) = <b>{st.session_state.acid_vol}</b></li>
             <li><code>V_re</code> (RE 側體積) = <b>{st.session_state.re_vol}</b></li>
-            <li><code>n_e</code> (電子數) = <b>依 Product 決定</b></li>
+            <li><code>n_e</code> (轉移電子數) = <b>讀取表格各行</b></li>
             <li><code>Dilution</code> (稀釋倍率) = <b>讀取表格各行</b></li>
             <li><code>Conc</code> (莫耳濃度) = <b>讀取表格各行</b></li>
             <li><code>C1</code> (Acid 濃度) = <b>讀取表格各行</b></li>
@@ -131,6 +141,7 @@ with st.sidebar:
                     gp = data.get('global_params', {})
                     if 'mode' in gp: st.session_state.mode = "H-cell (單槽)" if gp['mode'] == "H-cell" else "GDE (雙槽)"
                     st.session_state.q_toggle = gp.get('gde_q_toggle', False)
+                    st.session_state.custom_ne_toggle = gp.get('custom_ne_toggle', False) # 💡 讀取開關狀態
                     st.session_state.total_q = gp.get('total_coulomb', 100.0)
                     st.session_state.electrolyte = gp.get('electrolyte', "0.5 M KNO3 + 0.1 M KOH")
                     st.session_state.acid_vol = gp.get('acid_vol', 10.0)
@@ -147,6 +158,10 @@ with st.sidebar:
                         
                         mapping = {'product': 'Product', 'catalyst': 'Catalyst', 'volume_ul': 'Loading (μl)', 'v_rhe': 'V vs RHE', 'dilution': 'Dilution Factor', '稀釋倍率': 'Dilution Factor', 'conc': 'Conc. (μmol)', 'acid_c1': 'Acid C1 (mM)', 're_c2': 'RE C2 (mM)'}
                         df = df.rename(columns=mapping)
+                        
+                        if 'n_e' not in df.columns:
+                            df['n_e'] = df['Product'].apply(lambda p: 6.0 if (st.session_state.q_toggle and p == 'NH3') else (8.0 if p == 'NH3' else 2.0))
+                            
                         if gp.get('mode') == "H-cell": st.session_state.hcell_data = df[[c for c in st.session_state.hcell_data.columns if c in df.columns]]
                         else: st.session_state.gde_data = df[[c for c in st.session_state.gde_data.columns if c in df.columns]]
                     
@@ -170,6 +185,7 @@ with st.sidebar:
             'acid_vol': st.session_state.acid_vol, 
             're_vol': st.session_state.re_vol, 
             'gde_q_toggle': st.session_state.q_toggle,
+            'custom_ne_toggle': st.session_state.custom_ne_toggle, # 💡 存入開關狀態
             'hcell_formula': st.session_state.hcell_formula,
             'gde_n_formula': st.session_state.gde_n_formula,
             'gde_fe_formula': st.session_state.gde_fe_formula
@@ -190,6 +206,14 @@ if editor_key_str in st.session_state:
             for col, val in changes.items():
                 target_df.loc[r_idx, col] = val
 
+# 💡 核心防呆：如果開關是「關閉」的，強制將 n_e 校正為標準值 (不管使用者之前改了什麼)
+if not st.session_state.custom_ne_toggle:
+    target_df['n_e'] = target_df['Product'].apply(
+        lambda p: 6.0 if (is_n2_mode and p == 'NH3') else (8.0 if p == 'NH3' else 2.0)
+    )
+    if "H-cell" in mode: st.session_state.hcell_data = target_df
+    else: st.session_state.gde_data = target_df
+
 # --- 3. 表格操作 ---
 with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", expanded=False):
     st.markdown("##### ➕ 批量新增空行")
@@ -199,11 +223,12 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
     with col_add2:
         if st.button("確認新增"):
             new_rows = []
+            default_ne = 6.0 if is_n2_mode else 8.0 
             for _ in range(st.session_state.add_row_count):
                 if "H-cell" in mode:
-                    new_rows.append({"選取": False, "Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "Dilution Factor": 1.0, "Conc. (μmol)": 0.0})
+                    new_rows.append({"選取": False, "Product": "NH3", "n_e": default_ne, "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "Dilution Factor": 1.0, "Conc. (μmol)": 0.0})
                 else:
-                    new_rows.append({"選取": False, "Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "Dilution Factor": 1.0, "Acid C1 (mM)": 0.0, "RE C2 (mM)": 0.0})
+                    new_rows.append({"選取": False, "Product": "NH3", "n_e": default_ne, "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "Dilution Factor": 1.0, "Acid C1 (mM)": 0.0, "RE C2 (mM)": 0.0})
             
             new_df = pd.DataFrame(new_rows)
             target_df = pd.concat([target_df, new_df], ignore_index=True)
@@ -215,14 +240,17 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
     st.divider()
 
     st.markdown("##### 🪄 批量修改與刪除 (請先在下方表格勾選 ☑)")
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1: 
         prod_options = ["(不修改)", "NH3"] if is_n2_mode else ["(不修改)", "NH3", "NO2"]
-        b_prod = st.selectbox("Product", options=prod_options, key="b_prod")
-    with col2: b_cat = st.text_input("Catalyst", key="b_cat")
-    with col3: b_load = st.text_input("Loading (μl)", key="b_load")
-    with col4: b_vrhe = st.text_input("V vs RHE", key="b_vrhe")
-    with col5: b_dil = st.text_input("Dilution Factor", key="b_dil")
+        b_prod = st.selectbox("更新 Product", options=prod_options, key="b_prod")
+    with col2: 
+        # 💡 若開關關閉，此輸入框變成灰色不可編輯
+        b_ne = st.text_input("更新 n_e", key="b_ne", disabled=not st.session_state.custom_ne_toggle)
+    with col3: b_cat = st.text_input("更新 Catalyst", key="b_cat")
+    with col4: b_load = st.text_input("更新 Loading (μl)", key="b_load")
+    with col5: b_vrhe = st.text_input("更新 V vs RHE", key="b_vrhe")
+    with col6: b_dil = st.text_input("更新 Dilution", key="b_dil")
     
     col_btn1, col_btn2, _ = st.columns([2, 2, 4])
     with col_btn1:
@@ -233,6 +261,7 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
                     st.warning("⚠️ 請先在下方表格左側勾選 (☑) 您要修改的行！")
                 else:
                     if st.session_state.b_prod != "(不修改)": target_df.loc[mask, "Product"] = st.session_state.b_prod
+                    if st.session_state.b_ne and st.session_state.custom_ne_toggle: target_df.loc[mask, "n_e"] = float(st.session_state.b_ne)
                     if st.session_state.b_cat: target_df.loc[mask, "Catalyst"] = st.session_state.b_cat
                     if st.session_state.b_load: target_df.loc[mask, "Loading (μl)"] = float(st.session_state.b_load)
                     if st.session_state.b_vrhe: target_df.loc[mask, "V vs RHE"] = float(st.session_state.b_vrhe)
@@ -244,7 +273,7 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
                     st.session_state.editor_key += 1
                     st.rerun()
             except ValueError:
-                st.error("數值格式輸入錯誤！請確保 Loading, V vs RHE, Dilution Factor 欄位中輸入的是數字。")
+                st.error("數值格式輸入錯誤！請確保數值欄位中輸入的是數字。")
 
     with col_btn2:
         if st.button("❌ 刪除已選取行", use_container_width=True):
@@ -291,7 +320,9 @@ edited_df = st.data_editor(
     on_change=commit_edits,
     column_config={
         "選取": st.column_config.CheckboxColumn("☑ 選取", default=False, width="small"),
-        "Product": st.column_config.SelectboxColumn("Product", options=["NH3"] if is_n2_mode else ["NH3", "NO2"], required=True)
+        "Product": st.column_config.SelectboxColumn("Product", options=["NH3"] if is_n2_mode else ["NH3", "NO2"], required=True),
+        # 💡 若開關關閉，表格裡的 n_e 欄位變成灰色不可編輯
+        "n_e": st.column_config.NumberColumn("n_e", required=True, disabled=not st.session_state.custom_ne_toggle)
     }
 )
 
@@ -312,7 +343,13 @@ if st.button("🔄 開始計算 FE", type="primary"):
     for _, row in res_df.iterrows():
         try:
             prod = row["Product"]
-            n_e = 6 if (is_n2_mode and prod == 'NH3') else (8 if prod == 'NH3' else (2 if prod == 'NO2' else np.nan))
+            
+            row_ne = row.get("n_e")
+            if pd.isna(row_ne) or row_ne == "":
+                n_e = 6 if (is_n2_mode and prod == 'NH3') else (8 if prod == 'NH3' else (2 if prod == 'NO2' else np.nan))
+            else:
+                n_e = float(row_ne)
+                
             dil = float(row["Dilution Factor"]) if pd.notna(row["Dilution Factor"]) else 1.0 
             
             if "H-cell" in mode:
@@ -361,14 +398,14 @@ if 'res_df' in st.session_state:
             if "H-cell" in curr_mode:
                 export_data.append({
                     'Cell': f"H-cell({row['Product']})", 'Electrolyte': curr_electrolyte, 'Total Coulomb (Q)': curr_Q,
-                    'Product Type': row['Product'], 'Catalyst': row['Catalyst'], 'Loading (μl)': row['Loading (μl)'],
+                    'Product Type': row['Product'], 'n_e': row['n_e'], 'Catalyst': row['Catalyst'], 'Loading (μl)': row['Loading (μl)'],
                     'Dilution Factor': row['Dilution Factor'], 'V vs RHE': row['V vs RHE'], 'Total Concentration (μmol)': row['Conc. (μmol)'],
                     'Faradaic Efficiency (%)': row['FE (%)']
                 })
             else:
                 export_data.append({
                     'Cell': f"GDE_{gas_mode_str}({row['Product']})", 'Electrolyte': curr_electrolyte, 'Total Coulomb (Q)': curr_Q,
-                    'Product Type': row['Product'], 'Catalyst': row['Catalyst'], 'Loading (μl)': row['Loading (μl)'],
+                    'Product Type': row['Product'], 'n_e': row['n_e'], 'Catalyst': row['Catalyst'], 'Loading (μl)': row['Loading (μl)'],
                     'Dilution Factor': row['Dilution Factor'], 'V vs RHE': row['V vs RHE'], 'Acid C1 (mM)': row['Acid C1 (mM)'], 
                     'RE C2 (mM)': row['RE C2 (mM)'], 'Total Concentration (μmol)': row['Total n (μmol)'], 'Faradaic Efficiency (%)': row['FE (%)']
                 })
@@ -394,17 +431,17 @@ if 'res_df' in st.session_state:
             end_r = start_r + len(group) - 1
 
             if end_r > start_r:
-                for col_idx in [1, 2, 3, 4, 7]:
+                for col_idx in [1, 2, 3, 4, 5, 8]:
                     ws.merge_cells(start_row=start_r, end_row=end_r, start_column=col_idx, end_column=col_idx)
 
                 catalyst_starts = start_r
-                current_cat = ws.cell(row=start_r, column=5).value
+                current_cat = ws.cell(row=start_r, column=6).value
                 for r in range(start_r + 1, end_r + 2):
-                    cell_val = ws.cell(row=r, column=5).value if r <= end_r else None
+                    cell_val = ws.cell(row=r, column=6).value if r <= end_r else None
                     if cell_val != current_cat:
                         if (r - 1) > catalyst_starts:
-                            ws.merge_cells(start_row=catalyst_starts, end_row=r-1, start_column=5, end_column=5)
                             ws.merge_cells(start_row=catalyst_starts, end_row=r-1, start_column=6, end_column=6)
+                            ws.merge_cells(start_row=catalyst_starts, end_row=r-1, start_column=7, end_column=7)
                         catalyst_starts = r
                         current_cat = cell_val
 
