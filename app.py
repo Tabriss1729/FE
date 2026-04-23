@@ -120,6 +120,9 @@ with st.sidebar:
     total_q = st.session_state.total_q
 
     st.text_input("Electrolyte", key="electrolyte")
+    # 💡 核心修復：確保電解液變數正確宣告，給後方的 Excel 匯出器使用
+    electrolyte = st.session_state.electrolyte 
+
     if "GDE" in mode:
         st.number_input("Acid 側體積 (mL)", key="acid_vol")
         st.number_input("RE 側體積 (mL)", key="re_vol")
@@ -472,13 +475,6 @@ if 'res_df' in st.session_state:
         out = BytesIO()
         wb.save(out)
         return out.getvalue()
-
-    # 💡 核心修復：將 default_excel_name 重新補上，解決 NameError 當機問題
-    if "H-cell" in mode:
-        default_excel_name = "FE_Result_H-cell"
-    else:
-        gas_str = "N2_Gas" if is_n2_mode else "Ar_Gas"
-        default_excel_name = f"FE_Result_GDE_{gas_str}"
 
     st.markdown("##### 📁 匯出報表 (可自訂檔名)")
     col_input, col_dl, _ = st.columns([2, 2, 4])
