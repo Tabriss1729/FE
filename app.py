@@ -115,7 +115,7 @@ with st.sidebar:
     with col_q:
         st.number_input("總電量 Q (C)", step=10.0, key="total_q")
     with col_ne:
-        st.number_input("自訂 n_e", step=0.1, key="sidebar_ne", disabled=not st.session_state.custom_ne_toggle)
+        st.number_input("自訂電子轉移數", step=0.1, key="sidebar_ne", disabled=not st.session_state.custom_ne_toggle)
         
     total_q = st.session_state.total_q
 
