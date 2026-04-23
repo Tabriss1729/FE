@@ -120,7 +120,7 @@ with st.sidebar:
     total_q = st.session_state.total_q
 
     st.text_input("Electrolyte", key="electrolyte")
-    electrolyte = st.session_state.electrolyte # 💡 絕對鎖定變數，給 Excel 匯出用
+    electrolyte = st.session_state.electrolyte
 
     if "GDE" in mode:
         st.number_input("Acid 側體積 (mL)", key="acid_vol")
@@ -258,4 +258,233 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
         if st.button("🪄 套用修改至已選取行", use_container_width=True):
             try:
                 mask = target_df["選取"] == True
-                if not mask
+                if not mask.any():
+                    st.warning("⚠️ 請先在下方表格左側勾選 (☑) 您要修改的行！")
+                else:
+                    if st.session_state.get('b_prod', "(不修改)") != "(不修改)": target_df.loc[mask, "Product"] = st.session_state.b_prod
+                    if st.session_state.get('b_cat'): target_df.loc[mask, "Catalyst"] = st.session_state.b_cat
+                    if st.session_state.get('b_load'): target_df.loc[mask, "Loading (μl)"] = float(st.session_state.b_load)
+                    if st.session_state.get('b_vrhe'): target_df.loc[mask, "V vs RHE"] = float(st.session_state.b_vrhe)
+                    if st.session_state.get('b_dil'): target_df.loc[mask, "Dilution Factor"] = float(st.session_state.b_dil)
+                    
+                    target_df["選取"] = False
+                    if "H-cell" in mode: st.session_state.hcell_data = target_df
+                    else: st.session_state.gde_data = target_df
+                    st.session_state.editor_key += 1
+                    st.rerun()
+            except ValueError:
+                st.error("數值格式輸入錯誤！請確保數值欄位中輸入的是數字。")
+
+    with col_btn2:
+        if st.button("❌ 刪除已選取行", use_container_width=True):
+            try:
+                mask = target_df["選取"] == True
+                if not mask.any():
+                    st.warning("⚠️ 請先在下方表格左側勾選 (☑) 您要刪除的行！")
+                else:
+                    target_df = target_df[~mask].reset_index(drop=True)
+                    if "H-cell" in mode: st.session_state.hcell_data = target_df
+                    else: st.session_state.gde_data = target_df
+                    st.session_state.editor_key += 1
+                    st.rerun()
+            except Exception as e:
+                st.error(f"刪除失敗: {e}")
+
+# --- 4. 數據表格 ---
+st.subheader(f"📊 數據輸入 - {mode}")
+
+col_sel1, col_sel2, _ = st.columns([1, 1, 8])
+with col_sel1:
+    if st.button("☑ 全選", use_container_width=True):
+        target_df["選取"] = True
+        if "H-cell" in mode: st.session_state.hcell_data = target_df
+        else: st.session_state.gde_data = target_df
+        st.session_state.editor_key += 1
+        st.rerun()
+with col_sel2:
+    if st.button("☐ 全取消", use_container_width=True):
+        target_df["選取"] = False
+        if "H-cell" in mode: st.session_state.hcell_data = target_df
+        else: st.session_state.gde_data = target_df
+        st.session_state.editor_key += 1
+        st.rerun()
+
+base_render_df = st.session_state.hcell_data if "H-cell" in mode else st.session_state.gde_data
+
+col_cfg = {
+    "選取": st.column_config.CheckboxColumn("☑ 選取", default=False, width="small"),
+    "Product": st.column_config.SelectboxColumn("Product", options=["NH3"] if is_n2_mode else ["NH3", "NO2"], required=True)
+}
+if st.session_state.custom_ne_toggle:
+    col_cfg["n_e"] = st.column_config.NumberColumn("n_e", required=True)
+else:
+    col_cfg["n_e"] = None 
+
+edited_df = st.data_editor(
+    base_render_df,
+    key=editor_key_str,
+    num_rows="fixed",
+    use_container_width=True,
+    hide_index=True,
+    on_change=commit_edits,
+    column_config=col_cfg
+)
+
+# --- 5. 計算與匯出設定 ---
+st.divider()
+st.subheader("📥 計算與匯出")
+
+if "H-cell" in mode:
+    default_excel_name = "FE_Result_H-cell"
+else:
+    gas_str = "N2_Gas" if is_n2_mode else "Ar_Gas"
+    default_excel_name = f"FE_Result_GDE_{gas_str}"
+
+if st.button("🔄 開始計算 FE", type="primary"):
+    res_df = edited_df.copy()
+    
+    if "H-cell" in mode:
+        res_df["Conc. (μmol)"] = res_df["Conc. (μmol)"].fillna(0.0)
+    else:
+        res_df["Acid C1 (mM)"] = res_df["Acid C1 (mM)"].fillna(0.0)
+        res_df["RE C2 (mM)"] = res_df["RE C2 (mM)"].fillna(0.0)
+
+    fe_res, tn_res = [], []
+    for _, row in res_df.iterrows():
+        try:
+            prod = row["Product"]
+            
+            row_ne = row.get("n_e")
+            if pd.isna(row_ne) or row_ne == "":
+                n_e = 6 if (is_n2_mode and prod == 'NH3') else (8 if prod == 'NH3' else (2 if prod == 'NO2' else np.nan))
+            else:
+                n_e = float(row_ne)
+                
+            dil = float(row["Dilution Factor"]) if pd.notna(row["Dilution Factor"]) else 1.0 
+            
+            if "H-cell" in mode:
+                env = {'Conc': float(row["Conc. (μmol)"]), 'Dilution': dil, 'Q': total_q, 'n_e': n_e, 'F': F_const}
+                fe_res.append(round(eval(st.session_state.hcell_formula, {"__builtins__": {}}, env), 2))
+            else:
+                env_n = {'C1': float(row["Acid C1 (mM)"]), 'C2': float(row["RE C2 (mM)"]), 'V_acid': st.session_state.acid_vol, 'V_re': st.session_state.re_vol, 'Dilution': dil}
+                tn = eval(st.session_state.gde_n_formula, {"__builtins__": {}}, env_n)
+                tn_res.append(round(tn, 3))
+                env_fe = {'Total_n': tn, 'Q': total_q, 'n_e': n_e, 'F': F_const}
+                fe_res.append(round(eval(st.session_state.gde_fe_formula, {"__builtins__": {}}, env_fe), 2))
+        except Exception as e:
+            fe_res.append("Error")
+            if "GDE" in mode: tn_res.append("Error")
+    
+    if "GDE" in mode: res_df["Total n (μmol)"] = tn_res
+    res_df["FE (%)"] = fe_res
+    
+    st.session_state.res_df = res_df
+
+if 'res_df' in st.session_state:
+    st.success("✅ 計算完成！")
+    drop_cols = ["選取"]
+    if not st.session_state.custom_ne_toggle:
+        drop_cols.append("n_e")
+    st.dataframe(st.session_state.res_df.drop(columns=drop_cols, errors='ignore'), use_container_width=True)
+
+    def to_pro_excel(df, curr_mode, curr_electrolyte, curr_Q, is_n2, show_ne):
+        def apply_subscript(text):
+            if pd.isna(text): return ""
+            text_str = str(text)
+            try:
+                f_val = float(text_str)
+                if np.isnan(f_val): return ""
+                return int(f_val) if f_val.is_integer() else f_val
+            except ValueError: pass
+            subscript_map = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+            return re.sub(r'([a-zA-Z])(\d+)', lambda m: m.group(1) + m.group(2).translate(subscript_map), text_str)
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "FE_Results"
+        thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+        export_data = []
+        gas_mode_str = "N2_Gas" if is_n2 else "Ar_Gas"
+
+        for _, row in df.iterrows():
+            row_dict = {
+                'Cell': f"H-cell({row['Product']})" if "H-cell" in curr_mode else f"GDE_{gas_mode_str}({row['Product']})",
+                'Electrolyte': curr_electrolyte, 'Total Coulomb (Q)': curr_Q,
+                'Product Type': row['Product']
+            }
+            if show_ne: row_dict['n_e'] = row['n_e']
+            row_dict.update({
+                'Catalyst': row['Catalyst'], 'Loading (μl)': row['Loading (μl)'],
+                'Dilution Factor': row['Dilution Factor'], 'V vs RHE': row['V vs RHE']
+            })
+            if "H-cell" in curr_mode:
+                row_dict['Total Concentration (μmol)'] = row['Conc. (μmol)']
+            else:
+                row_dict['Acid C1 (mM)'] = row['Acid C1 (mM)']
+                row_dict['RE C2 (mM)'] = row['RE C2 (mM)']
+                row_dict['Total Concentration (μmol)'] = row['Total n (μmol)']
+            row_dict['Faradaic Efficiency (%)'] = row['FE (%)']
+            export_data.append(row_dict)
+                
+        df_export = pd.DataFrame(export_data)
+
+        cur_row = 1
+        for prod, group in df_export.groupby("Product Type"):
+            cols = list(group.columns)
+            for c_idx, c_name in enumerate(cols):
+                cell = ws.cell(row=cur_row, column=c_idx+1, value=apply_subscript(c_name))
+                cell.font = Font(bold=True)
+                cell.border = thin_border
+                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            
+            start_r = cur_row + 1
+            for r_idx, r_data in enumerate(group.values.tolist()):
+                for c_idx, val in enumerate(r_data):
+                    cell = ws.cell(row=start_r+r_idx, column=c_idx+1, value=apply_subscript(val))
+                    cell.border = thin_border
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+            
+            end_r = start_r + len(group) - 1
+
+            if end_r > start_r:
+                merge_indices = [1, 2, 3, 4]
+                if show_ne: merge_indices.append(5)
+                for col_idx in merge_indices:
+                    ws.merge_cells(start_row=start_r, end_row=end_r, start_column=col_idx, end_column=col_idx)
+
+                cat_col_idx = 6 if show_ne else 5
+                catalyst_starts = start_r
+                current_cat = ws.cell(row=start_r, column=cat_col_idx).value
+                for r in range(start_r + 1, end_r + 2):
+                    cell_val = ws.cell(row=r, column=cat_col_idx).value if r <= end_r else None
+                    if cell_val != current_cat:
+                        if (r - 1) > catalyst_starts:
+                            ws.merge_cells(start_row=catalyst_starts, end_row=r-1, start_column=cat_col_idx, end_column=cat_col_idx)
+                            ws.merge_cells(start_row=catalyst_starts, end_row=r-1, start_column=cat_col_idx+1, end_column=cat_col_idx+1)
+                        catalyst_starts = r
+                        current_cat = cell_val
+
+            cur_row = end_r + 2
+
+        for col in ws.columns:
+            max_length = 0
+            column_letter = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except: pass
+            ws.column_dimensions[column_letter].width = (max_length + 2) * 1.2
+
+        out = BytesIO()
+        wb.save(out)
+        return out.getvalue()
+
+    st.markdown("##### 📁 匯出報表 (可自訂檔名)")
+    col_input, col_dl, _ = st.columns([2, 2, 4])
+    with col_input:
+        custom_excel_name = st.text_input("自訂 Excel 檔名", value=default_excel_name, label_visibility="collapsed", key="excel_name_input")
+        excel_filename_final = f"{today_str}_{st.session_state.excel_name_input}.xlsx"
+    with col_dl:
+        st.download_button("📥 下載 Excel", data=to_pro_excel(st.session_state.res_df, mode, electrolyte, total_q, is_n2_mode, st.session_state.custom_ne_toggle), file_name=excel_filename_final, use_container_width=True)
