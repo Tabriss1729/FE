@@ -45,12 +45,45 @@ if 'gde_data' not in st.session_state:
         "V vs RHE": pd.Series(dtype='float'), "Dilution Factor": pd.Series(dtype='float'), "Acid C1 (mM)": pd.Series(dtype='float'), "RE C2 (mM)": pd.Series(dtype='float')
     })
 
-# 相容性防呆
 for df_name in ['hcell_data', 'gde_data']:
     if '選取' not in st.session_state[df_name].columns: 
         st.session_state[df_name].insert(0, '選取', False)
     if 'n_e' not in st.session_state[df_name].columns:
         st.session_state[df_name].insert(2, 'n_e', np.nan)
+
+# 💡 核心修復：在畫出任何按鈕前，優先把待處理的 JSON 資料解包塞入記憶體
+if 'pending_json_data' in st.session_state:
+    data = st.session_state.pending_json_data
+    gp = data.get('global_params', {})
+    
+    if 'mode' in gp: st.session_state.mode = "H-cell (單槽)" if gp['mode'] == "H-cell" else "GDE (雙槽)"
+    st.session_state.q_toggle = gp.get('gde_q_toggle', False)
+    st.session_state.custom_ne_toggle = gp.get('custom_ne_toggle', False)
+    st.session_state.sidebar_ne = gp.get('sidebar_ne', 8.0)
+    st.session_state.total_q = gp.get('total_coulomb', 100.0)
+    st.session_state.electrolyte = gp.get('electrolyte', "0.5 M KNO3 + 0.1 M KOH")
+    st.session_state.acid_vol = gp.get('acid_vol', 10.0)
+    st.session_state.re_vol = gp.get('re_vol', 50.0)
+    
+    st.session_state.hcell_formula = gp.get('hcell_formula', "(Conc * 50 * Dilution * 1e-6 * n_e * F) / Q * 100")
+    st.session_state.gde_n_formula = gp.get('gde_n_formula', "(C1 * V_acid + C2 * V_re) * Dilution")
+    st.session_state.gde_fe_formula = gp.get('gde_fe_formula', "(Total_n * 1e-6 * n_e * F) / Q * 100")
+    
+    rows = data.get('rows', [])
+    if rows:
+        df = pd.DataFrame(rows)
+        if '選取' not in df.columns: df['選取'] = False
+        mapping = {'product': 'Product', 'catalyst': 'Catalyst', 'volume_ul': 'Loading (μl)', 'v_rhe': 'V vs RHE', 'dilution': 'Dilution Factor', '稀釋倍率': 'Dilution Factor', 'conc': 'Conc. (μmol)', 'acid_c1': 'Acid C1 (mM)', 're_c2': 'RE C2 (mM)'}
+        df = df.rename(columns=mapping)
+        if 'n_e' not in df.columns:
+            df['n_e'] = df['Product'].apply(lambda p: 6.0 if (st.session_state.q_toggle and p == 'NH3') else (8.0 if p == 'NH3' else 2.0))
+            
+        if gp.get('mode') == "H-cell": st.session_state.hcell_data = df[[c for c in st.session_state.hcell_data.columns if c in df.columns]]
+        else: st.session_state.gde_data = df[[c for c in st.session_state.gde_data.columns if c in df.columns]]
+    
+    st.session_state.editor_key += 1
+    if 'res_df' in st.session_state: del st.session_state.res_df 
+    del st.session_state.pending_json_data
 
 def commit_edits():
     curr_mode = st.session_state.get('mode', "GDE (雙槽)")
@@ -132,33 +165,10 @@ with st.sidebar:
                 try:
                     file_content = uploaded_json.getvalue().decode("utf-8")
                     data = json.loads(file_content)
-                    gp = data.get('global_params', {})
-                    if 'mode' in gp: st.session_state.mode = "H-cell (單槽)" if gp['mode'] == "H-cell" else "GDE (雙槽)"
-                    st.session_state.q_toggle = gp.get('gde_q_toggle', False)
-                    st.session_state.custom_ne_toggle = gp.get('custom_ne_toggle', False)
-                    st.session_state.sidebar_ne = gp.get('sidebar_ne', 8.0)
-                    st.session_state.total_q = gp.get('total_coulomb', 100.0)
-                    st.session_state.electrolyte = gp.get('electrolyte', "0.5 M KNO3 + 0.1 M KOH")
-                    st.session_state.acid_vol = gp.get('acid_vol', 10.0)
-                    st.session_state.re_vol = gp.get('re_vol', 50.0)
-                    st.session_state.hcell_formula = gp.get('hcell_formula', "(Conc * 50 * Dilution * 1e-6 * n_e * F) / Q * 100")
-                    st.session_state.gde_n_formula = gp.get('gde_n_formula', "(C1 * V_acid + C2 * V_re) * Dilution")
-                    st.session_state.gde_fe_formula = gp.get('gde_fe_formula', "(Total_n * 1e-6 * n_e * F) / Q * 100")
                     
-                    rows = data.get('rows', [])
-                    if rows:
-                        df = pd.DataFrame(rows)
-                        if '選取' not in df.columns: df['選取'] = False
-                        mapping = {'product': 'Product', 'catalyst': 'Catalyst', 'volume_ul': 'Loading (μl)', 'v_rhe': 'V vs RHE', 'dilution': 'Dilution Factor', '稀釋倍率': 'Dilution Factor', 'conc': 'Conc. (μmol)', 'acid_c1': 'Acid C1 (mM)', 're_c2': 'RE C2 (mM)'}
-                        df = df.rename(columns=mapping)
-                        if 'n_e' not in df.columns:
-                            df['n_e'] = df['Product'].apply(lambda p: 6.0 if (st.session_state.q_toggle and p == 'NH3') else (8.0 if p == 'NH3' else 2.0))
-                        if gp.get('mode') == "H-cell": st.session_state.hcell_data = df[[c for c in st.session_state.hcell_data.columns if c in df.columns]]
-                        else: st.session_state.gde_data = df[[c for c in st.session_state.gde_data.columns if c in df.columns]]
-                    
+                    # 💡 核心修復：將讀取到的資料打包，不直接修改，而是觸發網頁重整讓頂部程式碼處理
+                    st.session_state.pending_json_data = data
                     st.session_state.loaded_file_id = uploaded_json.file_id
-                    st.session_state.editor_key += 1
-                    if 'res_df' in st.session_state: del st.session_state.res_df 
                     st.rerun()
                 except Exception as e:
                     st.error(f"讀取失敗！詳細原因: {e}")
@@ -233,8 +243,6 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
     st.divider()
 
     st.markdown("##### 🪄 批量修改與刪除 (請先在下方表格勾選 ☑)")
-    
-    # 💡 核心修改：如果未開啟開關，這裡只會出現 5 欄，n_e 隱藏；開啟則是 6 欄
     cols = st.columns(6) if st.session_state.custom_ne_toggle else st.columns(5)
     
     with cols[0]:
@@ -244,13 +252,13 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
     idx = 1
     if st.session_state.custom_ne_toggle:
         with cols[idx]:
-            b_ne = st.text_input("n_e", key="b_ne")
+            b_ne = st.text_input("更新 n_e", key="b_ne")
         idx += 1
         
-    with cols[idx]: b_cat = st.text_input("Catalyst", key="b_cat")
-    with cols[idx+1]: b_load = st.text_input("Loading (μl)", key="b_load")
-    with cols[idx+2]: b_vrhe = st.text_input("V vs RHE", key="b_vrhe")
-    with cols[idx+3]: b_dil = st.text_input("Dilution Factor", key="b_dil")
+    with cols[idx]: b_cat = st.text_input("更新 Catalyst", key="b_cat")
+    with cols[idx+1]: b_load = st.text_input("更新 Loading (μl)", key="b_load")
+    with cols[idx+2]: b_vrhe = st.text_input("更新 V vs RHE", key="b_vrhe")
+    with cols[idx+3]: b_dil = st.text_input("更新 Dilution Factor", key="b_dil")
     
     col_btn1, col_btn2, _ = st.columns([2, 2, 4])
     with col_btn1:
@@ -311,7 +319,6 @@ with col_sel2:
 
 base_render_df = st.session_state.hcell_data if "H-cell" in mode else st.session_state.gde_data
 
-# 💡 核心修改：動態決定表格要不要顯示 n_e 欄位
 col_cfg = {
     "選取": st.column_config.CheckboxColumn("☑ 選取", default=False, width="small"),
     "Product": st.column_config.SelectboxColumn("Product", options=["NH3"] if is_n2_mode else ["NH3", "NO2"], required=True)
@@ -319,7 +326,7 @@ col_cfg = {
 if st.session_state.custom_ne_toggle:
     col_cfg["n_e"] = st.column_config.NumberColumn("n_e", required=True)
 else:
-    col_cfg["n_e"] = None # 設為 None 就會直接從表格介面上隱藏！
+    col_cfg["n_e"] = None 
 
 edited_df = st.data_editor(
     base_render_df,
@@ -377,7 +384,6 @@ if st.button("🔄 開始計算 FE", type="primary"):
 
 if 'res_df' in st.session_state:
     st.success("✅ 計算完成！")
-    # 這裡的隱藏邏輯：若開關關閉，顯示結果時也把 n_e 隱藏
     drop_cols = ["選取"]
     if not st.session_state.custom_ne_toggle:
         drop_cols.append("n_e")
@@ -446,7 +452,6 @@ if 'res_df' in st.session_state:
             if end_r > start_r:
                 merge_indices = [1, 2, 3, 4]
                 if show_ne: merge_indices.append(5)
-                # V vs RHE is typically dynamic, but we merge standard info
                 for col_idx in merge_indices:
                     ws.merge_cells(start_row=start_r, end_row=end_r, start_column=col_idx, end_column=col_idx)
 
