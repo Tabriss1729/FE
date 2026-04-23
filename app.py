@@ -28,7 +28,6 @@ if 'electrolyte' not in st.session_state: st.session_state.electrolyte = "0.5 M 
 if 'acid_vol' not in st.session_state: st.session_state.acid_vol = 10.0
 if 're_vol' not in st.session_state: st.session_state.re_vol = 50.0
 
-# 💡 初始化自訂公式 (預設值)
 if 'hcell_formula' not in st.session_state: st.session_state.hcell_formula = "(Conc * 50 * Dilution * 1e-6 * n_e * F) / Q * 100"
 if 'gde_n_formula' not in st.session_state: st.session_state.gde_n_formula = "(C1 * V_acid + C2 * V_re) * Dilution"
 if 'gde_fe_formula' not in st.session_state: st.session_state.gde_fe_formula = "(Total_n * 1e-6 * n_e * F) / Q * 100"
@@ -70,7 +69,6 @@ with st.sidebar:
                     st.session_state.acid_vol = gp.get('acid_vol', 10.0)
                     st.session_state.re_vol = gp.get('re_vol', 50.0)
                     
-                    # 💡 讀取 JSON 中的自訂公式 (若無則維持現有)
                     st.session_state.hcell_formula = gp.get('hcell_formula', st.session_state.hcell_formula)
                     st.session_state.gde_n_formula = gp.get('gde_n_formula', st.session_state.gde_n_formula)
                     st.session_state.gde_fe_formula = gp.get('gde_fe_formula', st.session_state.gde_fe_formula)
@@ -106,7 +104,6 @@ with st.sidebar:
                 'acid_vol': st.session_state.acid_vol, 
                 're_vol': st.session_state.re_vol, 
                 'gde_q_toggle': st.session_state.q_toggle,
-                # 💡 將自訂公式存入 JSON 中
                 'hcell_formula': st.session_state.hcell_formula,
                 'gde_n_formula': st.session_state.gde_n_formula,
                 'gde_fe_formula': st.session_state.gde_fe_formula
@@ -136,18 +133,30 @@ with st.sidebar:
         st.session_state.acid_vol = st.number_input("Acid 側體積 (mL)", value=float(st.session_state.acid_vol))
         st.session_state.re_vol = st.number_input("RE 側體積 (mL)", value=float(st.session_state.re_vol))
 
-    # 💡 新增：公式自訂面板
+    # 💡 修改點：將變數說明改為可摺疊，並條列式附上動態數值
     st.markdown("---")
     with st.expander("⚙️ 公式設定 (Formula)", expanded=False):
-        st.markdown("**變數說明：**\n* `Q`: 總電量, `F`: 法拉第常數(96485)\n* `n_e`: 轉移電子數, `Dilution`: 稀釋倍率")
+        st.markdown(f"""
+        <details>
+        <summary style="cursor: pointer; font-weight: bold; color: #4A90E2;">📖 變數說明與當前數值 (點擊展開)</summary>
+        <ul style="margin-top: 8px; margin-bottom: 15px; padding-left: 20px; font-size: 0.9em; line-height: 1.6;">
+            <li><code>Q</code> (總電量) = <b>{st.session_state.total_q}</b></li>
+            <li><code>F</code> (法拉第常數) = <b>{F_const}</b></li>
+            <li><code>V_acid</code> (Acid 側體積) = <b>{st.session_state.acid_vol}</b></li>
+            <li><code>V_re</code> (RE 側體積) = <b>{st.session_state.re_vol}</b></li>
+            <li><code>n_e</code> (轉移電子數) = <b>由表格產物決定</b></li>
+            <li><code>Dilution</code> (稀釋倍率) = <b>讀取表格各行</b></li>
+            <li><code>Conc</code> / <code>C1</code> / <code>C2</code> = <b>讀取表格各行</b></li>
+            <li><code>Total_n</code> = <b>由 GDE 計算產生</b></li>
+        </ul>
+        </details>
+        """, unsafe_allow_html=True)
         
         st.markdown("##### H-cell 公式")
-        st.markdown("*額外變數: `Conc` (莫耳濃度)*")
         st.session_state.hcell_formula = st.text_area("FE (%) =", value=st.session_state.hcell_formula, height=68, label_visibility="collapsed")
         
         st.divider()
         st.markdown("##### GDE 雙槽公式")
-        st.markdown("*額外變數: `C1`, `C2`, `V_acid`, `V_re`, `Total_n`*")
         st.session_state.gde_n_formula = st.text_input("Total n (μmol) =", value=st.session_state.gde_n_formula)
         st.session_state.gde_fe_formula = st.text_input("FE (%) =", value=st.session_state.gde_fe_formula)
         
@@ -288,11 +297,9 @@ if st.button("🔄 開始計算 FE", type="primary"):
             dil = float(row["Dilution Factor"])
             if "H-cell" in mode:
                 env = {'Conc': float(row["Conc. (μmol)"]), 'Dilution': dil, 'Q': total_q, 'n_e': n_e, 'F': F_const}
-                # 💡 使用動態儲存的 H-cell 公式
                 fe_res.append(round(eval(st.session_state.hcell_formula, {"__builtins__": {}}, env), 2))
             else:
                 env_n = {'C1': float(row["Acid C1 (mM)"]), 'C2': float(row["RE C2 (mM)"]), 'V_acid': st.session_state.acid_vol, 'V_re': st.session_state.re_vol, 'Dilution': dil}
-                # 💡 使用動態儲存的 GDE 公式
                 tn = eval(st.session_state.gde_n_formula, {"__builtins__": {}}, env_n)
                 tn_res.append(round(tn, 3))
                 env_fe = {'Total_n': tn, 'Q': total_q, 'n_e': n_e, 'F': F_const}
