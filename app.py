@@ -15,7 +15,7 @@ st.title("⚡ Faradaic Efficiency 數據計算機")
 F_const = 96485
 today_str = datetime.date.today().strftime("%Y%m%d")
 
-# --- 初始化 Session State ---
+# --- 初始化 Session State (讓系統記住所有的值) ---
 if 'editor_key' not in st.session_state: st.session_state.editor_key = 0
 if 'loaded_file_id' not in st.session_state: st.session_state.loaded_file_id = ""
 
@@ -46,6 +46,7 @@ if 'gde_data' not in st.session_state:
 if '選取' not in st.session_state.hcell_data.columns: st.session_state.hcell_data.insert(0, '選取', False)
 if '選取' not in st.session_state.gde_data.columns: st.session_state.gde_data.insert(0, '選取', False)
 
+# 表格編輯瞬間存檔回呼函數
 def commit_edits():
     curr_mode = st.session_state.get('mode', "GDE (雙槽)")
     key = f"data_editor_{curr_mode}_{st.session_state.editor_key}"
@@ -60,32 +61,30 @@ def commit_edits():
                     for col, val in changes.items():
                         df.loc[r_idx, col] = val
 
-# --- 2. 側邊欄：重新排序 ---
+# --- 2. 側邊欄 ---
 with st.sidebar:
-    # 區塊 1: 🧪 實驗參數 (移到最上方)
     st.header("🧪 實驗參數")
-    mode = st.radio("實驗模式", ["H-cell (單槽)", "GDE (雙槽)"], index=0 if "H-cell" in st.session_state.mode else 1)
-    st.session_state.mode = mode
+    
+    # 💡 核心修復：全部改用 key 綁定，徹底解決左側打字回朔問題
+    st.radio("實驗模式", ["H-cell (單槽)", "GDE (雙槽)"], key="mode")
+    mode = st.session_state.mode
     
     if "GDE" in mode:
-        is_n2_mode = st.toggle("通入氮氣 (N2 Mode)", value=st.session_state.q_toggle)
-        st.session_state.q_toggle = is_n2_mode
-    else:
-        is_n2_mode = False 
-
-    total_q = st.number_input("總電量 Q (C)", value=float(st.session_state.total_q), step=10.0)
-    st.session_state.total_q = total_q
+        st.toggle("通入氮氣 (N2 Mode)", key="q_toggle")
     
-    electrolyte = st.text_input("Electrolyte", value=st.session_state.electrolyte)
-    st.session_state.electrolyte = electrolyte
+    is_n2_mode = st.session_state.q_toggle if "GDE" in mode else False 
+
+    st.number_input("總電量 Q (C)", step=10.0, key="total_q")
+    st.text_input("Electrolyte", key="electrolyte")
 
     if "GDE" in mode:
-        st.session_state.acid_vol = st.number_input("Acid 側體積 (mL)", value=float(st.session_state.acid_vol))
-        st.session_state.re_vol = st.number_input("RE 側體積 (mL)", value=float(st.session_state.re_vol))
+        st.number_input("Acid 側體積 (mL)", key="acid_vol")
+        st.number_input("RE 側體積 (mL)", key="re_vol")
+        
+    total_q = st.session_state.total_q
 
     st.markdown("---")
     
-    # 區塊 2: ⚙️ 公式設定 (夾在中間)
     with st.expander("⚙️ 公式設定 (Formula)", expanded=False):
         st.markdown(f"""
         <details>
@@ -106,12 +105,12 @@ with st.sidebar:
         """, unsafe_allow_html=True)
         
         st.markdown("##### H-cell 公式")
-        st.session_state.hcell_formula = st.text_area("FE (%) =", value=st.session_state.hcell_formula, height=68, label_visibility="collapsed")
+        st.text_area("FE (%) =", height=68, label_visibility="collapsed", key="hcell_formula")
         
         st.divider()
         st.markdown("##### GDE 雙槽公式")
-        st.session_state.gde_n_formula = st.text_input("Total n (μmol) =", value=st.session_state.gde_n_formula)
-        st.session_state.gde_fe_formula = st.text_input("FE (%) =", value=st.session_state.gde_fe_formula)
+        st.text_input("Total n (μmol) =", key="gde_n_formula")
+        st.text_input("FE (%) =", key="gde_fe_formula")
         
         if st.button("🔄 恢復預設公式", use_container_width=True):
             st.session_state.hcell_formula = "(Conc * 50 * Dilution * 1e-6 * n_e * F) / Q * 100"
@@ -120,8 +119,6 @@ with st.sidebar:
             st.rerun()
 
     st.markdown("---")
-    
-    # 區塊 3: 💾 設定與檔案管理 (移到最下方)
     st.header("💾 設定與檔案管理")
     with st.expander("📂 讀取 JSON 設定檔", expanded=True):
         uploaded_json = st.file_uploader("選擇檔案 (.json)", type="json", label_visibility="collapsed")
@@ -139,9 +136,9 @@ with st.sidebar:
                     st.session_state.acid_vol = gp.get('acid_vol', 10.0)
                     st.session_state.re_vol = gp.get('re_vol', 50.0)
                     
-                    st.session_state.hcell_formula = gp.get('hcell_formula', st.session_state.hcell_formula)
-                    st.session_state.gde_n_formula = gp.get('gde_n_formula', st.session_state.gde_n_formula)
-                    st.session_state.gde_fe_formula = gp.get('gde_fe_formula', st.session_state.gde_fe_formula)
+                    st.session_state.hcell_formula = gp.get('hcell_formula', "(Conc * 50 * Dilution * 1e-6 * n_e * F) / Q * 100")
+                    st.session_state.gde_n_formula = gp.get('gde_n_formula', "(C1 * V_acid + C2 * V_re) * Dilution")
+                    st.session_state.gde_fe_formula = gp.get('gde_fe_formula', "(Total_n * 1e-6 * n_e * F) / Q * 100")
                     
                     rows = data.get('rows', [])
                     if rows:
@@ -162,12 +159,12 @@ with st.sidebar:
                     st.error(f"讀取失敗！詳細原因: {e}")
 
     st.markdown("##### 💾 儲存當前設定")
-    custom_json_name = st.text_input("自訂 JSON 檔名", value="FE_Config")
-    json_filename_final = f"{today_str}_{custom_json_name}.json"
+    custom_json_name = st.text_input("自訂 JSON 檔名", value="FE_Config", key="json_name_input")
+    json_filename_final = f"{today_str}_{st.session_state.json_name_input}.json"
 
     save_data = {
         'global_params': {
-            'mode': "H-cell" if "H-cell" in st.session_state.mode else "GDE", 
+            'mode': st.session_state.mode, 
             'total_coulomb': st.session_state.total_q, 
             'electrolyte': st.session_state.electrolyte, 
             'acid_vol': st.session_state.acid_vol, 
@@ -198,11 +195,11 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
     st.markdown("##### ➕ 批量新增空行")
     col_add1, col_add2, _ = st.columns([1, 1, 3])
     with col_add1:
-        add_count = st.number_input("輸入要新增的行數", min_value=1, max_value=50, value=1, step=1, label_visibility="collapsed")
+        add_count = st.number_input("輸入要新增的行數", min_value=1, max_value=50, value=1, step=1, label_visibility="collapsed", key="add_row_count")
     with col_add2:
         if st.button("確認新增"):
             new_rows = []
-            for _ in range(add_count):
+            for _ in range(st.session_state.add_row_count):
                 if "H-cell" in mode:
                     new_rows.append({"選取": False, "Product": "NH3", "Catalyst": "", "Loading (μl)": None, "V vs RHE": None, "Dilution Factor": 1.0, "Conc. (μmol)": 0.0})
                 else:
@@ -221,11 +218,11 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1: 
         prod_options = ["(不修改)", "NH3"] if is_n2_mode else ["(不修改)", "NH3", "NO2"]
-        b_prod = st.selectbox("更新 Product", options=prod_options)
-    with col2: b_cat = st.text_input("更新 Catalyst")
-    with col3: b_load = st.text_input("更新 Loading (μl)")
-    with col4: b_vrhe = st.text_input("更新 V vs RHE")
-    with col5: b_dil = st.text_input("更新 Dilution Factor")
+        b_prod = st.selectbox("更新 Product", options=prod_options, key="b_prod")
+    with col2: b_cat = st.text_input("更新 Catalyst", key="b_cat")
+    with col3: b_load = st.text_input("更新 Loading (μl)", key="b_load")
+    with col4: b_vrhe = st.text_input("更新 V vs RHE", key="b_vrhe")
+    with col5: b_dil = st.text_input("更新 Dilution Factor", key="b_dil")
     
     col_btn1, col_btn2, _ = st.columns([2, 2, 4])
     with col_btn1:
@@ -235,11 +232,11 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
                 if not mask.any():
                     st.warning("⚠️ 請先在下方表格左側勾選 (☑) 您要修改的行！")
                 else:
-                    if b_prod != "(不修改)": target_df.loc[mask, "Product"] = b_prod
-                    if b_cat: target_df.loc[mask, "Catalyst"] = b_cat
-                    if b_load: target_df.loc[mask, "Loading (μl)"] = float(b_load)
-                    if b_vrhe: target_df.loc[mask, "V vs RHE"] = float(b_vrhe)
-                    if b_dil: target_df.loc[mask, "Dilution Factor"] = float(b_dil)
+                    if st.session_state.b_prod != "(不修改)": target_df.loc[mask, "Product"] = st.session_state.b_prod
+                    if st.session_state.b_cat: target_df.loc[mask, "Catalyst"] = st.session_state.b_cat
+                    if st.session_state.b_load: target_df.loc[mask, "Loading (μl)"] = float(st.session_state.b_load)
+                    if st.session_state.b_vrhe: target_df.loc[mask, "V vs RHE"] = float(st.session_state.b_vrhe)
+                    if st.session_state.b_dil: target_df.loc[mask, "Dilution Factor"] = float(st.session_state.b_dil)
                     
                     target_df["選取"] = False
                     if "H-cell" in mode: st.session_state.hcell_data = target_df
@@ -437,7 +434,7 @@ if 'res_df' in st.session_state:
     
     col_input, col_dl, _ = st.columns([2, 2, 4])
     with col_input:
-        custom_excel_name = st.text_input("自訂 Excel 檔名", value=default_excel_name, label_visibility="collapsed")
-        excel_filename_final = f"{today_str}_{custom_excel_name}.xlsx"
+        custom_excel_name = st.text_input("自訂 Excel 檔名", value=default_excel_name, label_visibility="collapsed", key="excel_name_input")
+        excel_filename_final = f"{today_str}_{st.session_state.excel_name_input}.xlsx"
     with col_dl:
         st.download_button("📥 下載 Excel", data=to_pro_excel(st.session_state.res_df, mode, electrolyte, total_q, is_n2_mode), file_name=excel_filename_final, use_container_width=True)
