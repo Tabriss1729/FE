@@ -45,13 +45,14 @@ if 'gde_data' not in st.session_state:
         "V vs RHE": pd.Series(dtype='float'), "Dilution Factor": pd.Series(dtype='float'), "Acid C1 (mM)": pd.Series(dtype='float'), "RE C2 (mM)": pd.Series(dtype='float')
     })
 
+# 相容性防呆
 for df_name in ['hcell_data', 'gde_data']:
     if '選取' not in st.session_state[df_name].columns: 
         st.session_state[df_name].insert(0, '選取', False)
     if 'n_e' not in st.session_state[df_name].columns:
         st.session_state[df_name].insert(2, 'n_e', np.nan)
 
-# 💡 核心修復：在畫出任何按鈕前，優先把待處理的 JSON 資料解包塞入記憶體
+# JSON 讀取中繼處理
 if 'pending_json_data' in st.session_state:
     data = st.session_state.pending_json_data
     gp = data.get('global_params', {})
@@ -165,8 +166,6 @@ with st.sidebar:
                 try:
                     file_content = uploaded_json.getvalue().decode("utf-8")
                     data = json.loads(file_content)
-                    
-                    # 💡 核心修復：將讀取到的資料打包，不直接修改，而是觸發網頁重整讓頂部程式碼處理
                     st.session_state.pending_json_data = data
                     st.session_state.loaded_file_id = uploaded_json.file_id
                     st.rerun()
@@ -195,7 +194,7 @@ with st.sidebar:
     }
     st.download_button("📥 儲存為 JSON", data=json.dumps(save_data, ensure_ascii=False, indent=4), file_name=json_filename_final, use_container_width=True)
 
-# 處理按鈕之前，先捕捉表格內「來不及存檔」的手動編輯
+# 處理手動編輯存檔
 editor_key_str = f"data_editor_{mode}_{st.session_state.editor_key}"
 target_df = st.session_state.hcell_data.copy() if "H-cell" in mode else st.session_state.gde_data.copy()
 
@@ -243,22 +242,14 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
     st.divider()
 
     st.markdown("##### 🪄 批量修改與刪除 (請先在下方表格勾選 ☑)")
-    cols = st.columns(6) if st.session_state.custom_ne_toggle else st.columns(5)
-    
+    cols = st.columns(5)
     with cols[0]:
         prod_options = ["(不修改)", "NH3"] if is_n2_mode else ["(不修改)", "NH3", "NO2"]
         b_prod = st.selectbox("更新 Product", options=prod_options, key="b_prod")
-    
-    idx = 1
-    if st.session_state.custom_ne_toggle:
-        with cols[idx]:
-            b_ne = st.text_input("更新 n_e", key="b_ne")
-        idx += 1
-        
-    with cols[idx]: b_cat = st.text_input("更新 Catalyst", key="b_cat")
-    with cols[idx+1]: b_load = st.text_input("更新 Loading (μl)", key="b_load")
-    with cols[idx+2]: b_vrhe = st.text_input("更新 V vs RHE", key="b_vrhe")
-    with cols[idx+3]: b_dil = st.text_input("更新 Dilution Factor", key="b_dil")
+    with cols[1]: b_cat = st.text_input("更新 Catalyst", key="b_cat")
+    with cols[2]: b_load = st.text_input("更新 Loading (μl)", key="b_load")
+    with cols[3]: b_vrhe = st.text_input("更新 V vs RHE", key="b_vrhe")
+    with cols[4]: b_dil = st.text_input("更新 Dilution Factor", key="b_dil")
     
     col_btn1, col_btn2, _ = st.columns([2, 2, 4])
     with col_btn1:
@@ -269,7 +260,6 @@ with st.expander("🛠️ 表格操作 (新增行數 / 批量修改 / 刪除)", 
                     st.warning("⚠️ 請先在下方表格左側勾選 (☑) 您要修改的行！")
                 else:
                     if st.session_state.get('b_prod', "(不修改)") != "(不修改)": target_df.loc[mask, "Product"] = st.session_state.b_prod
-                    if st.session_state.custom_ne_toggle and st.session_state.get('b_ne'): target_df.loc[mask, "n_e"] = float(st.session_state.b_ne)
                     if st.session_state.get('b_cat'): target_df.loc[mask, "Catalyst"] = st.session_state.b_cat
                     if st.session_state.get('b_load'): target_df.loc[mask, "Loading (μl)"] = float(st.session_state.b_load)
                     if st.session_state.get('b_vrhe'): target_df.loc[mask, "V vs RHE"] = float(st.session_state.b_vrhe)
@@ -482,6 +472,13 @@ if 'res_df' in st.session_state:
         out = BytesIO()
         wb.save(out)
         return out.getvalue()
+
+    # 💡 核心修復：將 default_excel_name 重新補上，解決 NameError 當機問題
+    if "H-cell" in mode:
+        default_excel_name = "FE_Result_H-cell"
+    else:
+        gas_str = "N2_Gas" if is_n2_mode else "Ar_Gas"
+        default_excel_name = f"FE_Result_GDE_{gas_str}"
 
     st.markdown("##### 📁 匯出報表 (可自訂檔名)")
     col_input, col_dl, _ = st.columns([2, 2, 4])
